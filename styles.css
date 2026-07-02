@@ -146,7 +146,8 @@ a:hover { color: var(--primary-hover); }
     display: flex;
     gap: 8px;
     align-items: center;
-    flex-wrap: wrap;
+    /* Force controls to stay on one line */
+    flex-wrap: nowrap; 
 }
 
 #user-email {
@@ -157,6 +158,14 @@ a:hover { color: var(--primary-hover); }
     padding: 4px 10px;
     background: var(--surface-3);
     border-radius: 999px;
+    
+    /* NEW: Truncate long emails to save space */
+    max-width: 160px; 
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
 }
 
 /* ---------- GWA summary ---------- */
@@ -755,3 +764,416 @@ button:focus-visible, input:focus-visible, select:focus-visible {
     .component-block { margin-left: 0; flex-direction: column; align-items: flex-start; gap: 8px; }
     .item-row { width: 100%; justify-content: space-between; height: auto; padding: 6px 10px; }
 }
+
+/* ==========================================================
+   Interactive additions: donut rings, progress bars, charts
+   ========================================================== */
+
+/* GWA card donut ring */
+.gwa-card { position: relative; }
+.gwa-donut {
+    position: relative;
+    width: 108px;
+    height: 108px;
+    margin: 8px auto 6px;
+    display: block;
+}
+.gwa-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gwa-donut .track { fill: none; stroke: var(--surface-3); stroke-width: 10; }
+.gwa-donut .arc {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-dasharray: 283;
+    stroke-dashoffset: 283;
+    transition: stroke-dashoffset 900ms cubic-bezier(.22,1,.36,1), stroke 400ms ease;
+}
+.gwa-donut.tier-excellent .arc { stroke: #10b981; }
+.gwa-donut.tier-good      .arc { stroke: #4f46e5; }
+.gwa-donut.tier-ok        .arc { stroke: #f59e0b; }
+.gwa-donut.tier-warn      .arc { stroke: #dc2626; }
+.gwa-donut .center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px;
+}
+.gwa-donut .value {
+    font-family: var(--font-data);
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.02em;
+}
+.gwa-donut .label {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+.gwa-card .stamp { display: none; } /* replaced by donut */
+
+/* Tier badge under donut */
+.gwa-tier {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    background: var(--surface-3);
+    color: var(--text-muted);
+}
+.gwa-tier .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.gwa-tier.tier-excellent { background: #ecfdf5; color: #047857; }
+.gwa-tier.tier-good      { background: var(--primary-soft); color: var(--primary-hover); }
+.gwa-tier.tier-ok        { background: #fffbeb; color: #b45309; }
+.gwa-tier.tier-warn      { background: var(--danger-soft); color: var(--danger-hover); }
+
+/* Subject progress bar */
+.subject-progress {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 10px 0 4px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.subject-progress .bar {
+    flex: 1;
+    position: relative;
+    height: 10px;
+    background: var(--surface-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.subject-progress .fill {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary), #6366f1);
+    border-radius: 999px;
+    transition: width 800ms cubic-bezier(.22,1,.36,1), background 300ms;
+}
+.subject-progress .fill.tier-excellent { background: linear-gradient(90deg, #10b981, #34d399); }
+.subject-progress .fill.tier-good      { background: linear-gradient(90deg, #4f46e5, #6366f1); }
+.subject-progress .fill.tier-ok        { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.subject-progress .fill.tier-warn      { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.subject-progress .pass-marker {
+    position: absolute;
+    top: -3px; bottom: -3px;
+    width: 2px;
+    background: var(--text-subtle);
+    opacity: 0.6;
+}
+.subject-progress .pass-marker::after {
+    content: attr(data-label);
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.62rem;
+    color: var(--text-subtle);
+    white-space: nowrap;
+    font-family: var(--font-data);
+}
+.subject-progress .pct {
+    font-family: var(--font-data);
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+    min-width: 62px;
+    text-align: right;
+}
+.subject-progress .eq {
+    font-family: var(--font-data);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 3px 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+/* Semester subjects comparison chart */
+.sem-chart {
+    margin: 0 0 20px;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+}
+.sem-chart h3 {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-bottom: 14px;
+}
+.sem-chart .row {
+    display: grid;
+    grid-template-columns: 160px 1fr 72px;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 0;
+}
+.sem-chart .name {
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sem-chart .bar {
+    position: relative;
+    height: 8px;
+    background: var(--surface-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.sem-chart .fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--primary);
+    transition: width 900ms cubic-bezier(.22,1,.36,1);
+}
+.sem-chart .fill.tier-excellent { background: #10b981; }
+.sem-chart .fill.tier-good      { background: #4f46e5; }
+.sem-chart .fill.tier-ok        { background: #f59e0b; }
+.sem-chart .fill.tier-warn      { background: #dc2626; }
+.sem-chart .val {
+    font-family: var(--font-data);
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-align: right;
+    font-weight: 500;
+}
+.sem-chart .empty {
+    font-size: 0.82rem;
+    color: var(--text-subtle);
+    padding: 8px 0;
+}
+
+/* Component contribution pie (donut) beside each period */
+.period-header-viz {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+}
+.mini-donut { width: 44px; height: 44px; position: relative; flex-shrink: 0; }
+.mini-donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.mini-donut .track { fill: none; stroke: var(--surface-3); stroke-width: 6; }
+.mini-donut .seg { fill: none; stroke-width: 6; stroke-linecap: butt; transition: stroke-dashoffset 600ms ease; }
+.mini-donut .lbl {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-data);
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* Score item feedback: subtle pass/fail tint on max ratio */
+.item-row { transition: background 200ms; border-radius: 6px; padding: 2px 4px; }
+.item-row.pass { background: rgba(16,185,129,0.06); }
+.item-row.fail { background: rgba(220,38,38,0.06); }
+
+/* Numeric count-up subtle fade */
+@keyframes popIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.gwa-donut .value, .subject-progress .pct, .sem-chart .val {
+    animation: popIn 400ms ease both;
+}
+
+/* Stamp hover lift */
+.header-row .stamp { transition: transform 200ms, box-shadow 200ms; }
+.header-row .stamp:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+
+/* ==========================================================
+   Period breakdown + Period Grade summary card
+   ========================================================== */
+
+/* Period tag pill (e.g. "PRELIM", "MIDTERMS") */
+.period-header { align-items: center; gap: 10px; flex-wrap: wrap; }
+.period-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--primary-hover);
+    background: var(--primary-soft);
+    border-radius: 999px;
+}
+.period-grade-inline {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.pgi-label { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; font-size: 0.66rem; }
+.period-chip {
+    font-family: var(--font-data);
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 4px 12px;
+    border-radius: 8px;
+    background: var(--surface-3);
+    color: var(--text);
+}
+.period-chip.tier-excellent { background: #ecfdf5; color: #047857; }
+.period-chip.tier-good      { background: var(--primary-soft); color: var(--primary-hover); }
+.period-chip.tier-ok        { background: #fffbeb; color: #b45309; }
+.period-chip.tier-warn      { background: var(--danger-soft); color: var(--danger-hover); }
+.period-chip.tier-muted     { color: var(--text-subtle); }
+
+/* Two-column grid: inputs left, breakdown right */
+.period-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 20px;
+    align-items: start;
+    margin-top: 12px;
+}
+@media (max-width: 900px) {
+    .period-grid { grid-template-columns: 1fr; }
+}
+.period-inputs { min-width: 0; }
+
+/* Breakdown panel */
+.period-summary {
+    padding: 18px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: sticky;
+    top: 16px;
+}
+.breakdown-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+}
+.breakdown-empty {
+    font-size: 0.82rem;
+    color: var(--text-subtle);
+    padding: 8px 0;
+}
+.breakdown-list { display: flex; flex-direction: column; gap: 12px; }
+.bd-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--divider);
+}
+.bd-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.bd-name { font-size: 0.86rem; font-weight: 600; color: var(--text); }
+.bd-meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+.bd-track {
+    margin-top: 6px;
+    height: 4px;
+    background: var(--surface-3);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.bd-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--primary);
+    transition: width 700ms cubic-bezier(.22,1,.36,1);
+}
+.bd-fill.tier-excellent { background: #10b981; }
+.bd-fill.tier-good      { background: #4f46e5; }
+.bd-fill.tier-ok        { background: #f59e0b; }
+.bd-fill.tier-warn      { background: #dc2626; }
+
+.bd-val {
+    font-family: var(--font-data);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-align: right;
+    min-width: 56px;
+}
+.bd-val.tier-excellent { color: #059669; }
+.bd-val.tier-good      { color: var(--primary); }
+.bd-val.tier-ok        { color: #d97706; }
+.bd-val.tier-warn      { color: var(--danger); }
+.bd-val.tier-muted     { color: var(--text-subtle); }
+
+/* Period grade summary card */
+.period-grade {
+    margin-top: 4px;
+    padding: 18px 16px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-align: center;
+    box-shadow: var(--shadow-xs);
+}
+.period-grade .pg-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.period-grade .pg-value {
+    font-family: var(--font-data);
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-top: 6px;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    animation: popIn 500ms ease both;
+}
+.period-grade .pg-rule {
+    width: 60%;
+    height: 3px;
+    margin: 10px auto 12px;
+    border-radius: 999px;
+    background: var(--border-strong);
+    transition: background 300ms;
+}
+.period-grade .pg-note {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.period-grade .warn-ico { color: #d97706; font-size: 0.9rem; }
+.period-grade .ok-ico   { color: #059669; font-weight: 700; }
+
+.period-grade.tier-excellent .pg-value { color: #059669; }
+.period-grade.tier-excellent .pg-rule  { background: #10b981; }
+.period-grade.tier-good .pg-value      { color: var(--primary); }
+.period-grade.tier-good .pg-rule       { background: var(--primary); }
+.period-grade.tier-ok .pg-value        { color: #d97706; }
+.period-grade.tier-ok .pg-rule         { background: #f59e0b; }
+.period-grade.tier-warn .pg-value      { color: var(--danger); }
+.period-grade.tier-warn .pg-rule       { background: var(--danger); }
+

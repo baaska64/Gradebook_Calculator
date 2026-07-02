@@ -1,10 +1,8 @@
 const SUPABASE_URL = window.ENV_SUPABASE_URL || 'https://rkoeciiwqolgcjduhdqz.supabase.co';
 const SUPABASE_ANON_KEY = window.ENV_SUPABASE_KEY || 'sb_publishable_mB9EQATPU3C641O0_XbC2w_oWzrn8Pb';
-
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-
 let isOnline = navigator.onLine;
 let hasPendingSync = false;
 
@@ -29,9 +27,7 @@ window.addEventListener('offline', () => {
 
 const Storage = {
     KEY: 'grade_ledger_v2_data',
-
     getRecord: async () => {
-        // Always try to load local first for instant offline startup
         const localData = localStorage.getItem(Storage.KEY);
         let dataToReturn = localData ? JSON.parse(localData) : null;
 
@@ -45,7 +41,7 @@ const Storage = {
                 
                 if (data?.ledger_data) {
                     dataToReturn = data.ledger_data;
-                    localStorage.setItem(Storage.KEY, JSON.stringify(dataToReturn)); // Cache it
+                    localStorage.setItem(Storage.KEY, JSON.stringify(dataToReturn));
                 }
                 updateSyncUI('synced');
             } catch (err) {
@@ -56,13 +52,9 @@ const Storage = {
         }
         return dataToReturn;
     },
-
     setRecord: async (data) => {
-        // 1. ALWAYS save locally immediately
         localStorage.setItem(Storage.KEY, JSON.stringify(data));
         showAutosave();
-
-        // 2. Attempt cloud sync
         if (currentUser) {
             if (isOnline) {
                 updateSyncUI('pending');
@@ -73,26 +65,21 @@ const Storage = {
             }
         }
     },
-
     syncToCloud: async (data = null) => {
         if (!currentUser) return;
         const dataToSync = data || JSON.parse(localStorage.getItem(Storage.KEY));
-        
         try {
             const { error } = await supabaseClient
                 .from('user_ledgers')
                 .upsert({ id: currentUser.id, ledger_data: dataToSync });
-            
             if (error) throw error;
-            
             hasPendingSync = false;
             updateSyncUI('synced');
         } catch (err) {
             hasPendingSync = true;
-            updateSyncUI('offline'); // Revert to offline state if sync fails
+            updateSyncUI('offline');
         }
     },
-
     clearRecords: async () => {
         localStorage.removeItem(Storage.KEY);
         if (currentUser && isOnline) {
@@ -106,7 +93,6 @@ function toggleModal(show) {
     document.getElementById('auth-message').textContent = '';
 }
 
-// --- NEW: Custom Confirm Modal Promise ---
 function customConfirm(message) {
     return new Promise((resolve) => {
         const modal = document.getElementById('confirm-modal');
@@ -122,22 +108,13 @@ function customConfirm(message) {
             btnOk.removeEventListener('click', onOk);
             btnCancel.removeEventListener('click', onCancel);
         };
-
-        const onOk = () => {
-            cleanup();
-            resolve(true);
-        };
-
-        const onCancel = () => {
-            cleanup();
-            resolve(false);
-        };
+        const onOk = () => { cleanup(); resolve(true); };
+        const onCancel = () => { cleanup(); resolve(false); };
 
         btnOk.addEventListener('click', onOk);
         btnCancel.addEventListener('click', onCancel);
     });
 }
-// -----------------------------------------
 
 async function handleAuth() {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -145,7 +122,6 @@ async function handleAuth() {
     updateAuthUI();
 
     document.getElementById('btn-login').onclick = () => toggleModal(true);
-
     document.getElementById('btn-submit-login').onclick = async () => {
         const email = document.getElementById('auth-email').value;
         const password = document.getElementById('auth-password').value;
@@ -153,7 +129,6 @@ async function handleAuth() {
         if (error) document.getElementById('auth-message').textContent = error.message;
         else window.location.reload();
     };
-
     document.getElementById('btn-submit-signup').onclick = async () => {
         const email = document.getElementById('auth-email').value;
         const password = document.getElementById('auth-password').value;
@@ -161,18 +136,14 @@ async function handleAuth() {
         if (error) document.getElementById('auth-message').textContent = error.message;
         else alert('Signup successful! Please check your email to verify your account.');
     };
-
     document.getElementById('btn-delete-account').onclick = async () => {
-        // Replaced native confirm with customConfirm
         const proceed = await customConfirm('PERMANENT ACTION: This will delete your account and all stored grades. Proceed?');
         if (!proceed) return;
-
         await supabaseClient.from('user_ledgers').delete().eq('id', currentUser.id);
         await supabaseClient.auth.signOut();
         alert('Account deleted. Your local data remains; you may clear it using the Reset button.');
         window.location.reload();
     };
-
     document.getElementById('btn-logout').onclick = async () => {
         await supabaseClient.auth.signOut();
         window.location.reload();
@@ -204,6 +175,7 @@ function generateId() {
 
 function getInitialData() {
     return {
+        settings: { gradingSystem: '1_IS_BEST' },
         years: [{
             id: generateId(),
             name: '2025-2026',
@@ -214,7 +186,6 @@ function getInitialData() {
                     id: generateId(),
                     name: 'Software Engineering',
                     units: 3,
-                    bestIs1: true,
                     passingPercent: 60,
                     periods: [{
                         id: generateId(),
@@ -237,51 +208,79 @@ let appData = null;
 let state = { currentYearId: null, currentSemId: null };
 
 const Calculator = {
-    interpolateGrade: (percentage, passingPercent, bestIs1) => {
-        if (percentage < passingPercent) return bestIs1 ? 5.0 : 1.0;
-        if (percentage >= 100) return bestIs1 ? 1.0 : 5.0;
+interpolateGrade: (percentage, passingPercent, system) => {
+        if (system === 'PERCENT') return percentage;
+        
+        // --- NEW 4.0 LOGIC ---
+        if (system === '4_IS_BEST') {
+            if (percentage < passingPercent) return 0.0;
+            if (percentage >= 100) return 4.0;
+            const ratio = (percentage - passingPercent) / (100 - passingPercent);
+            return 1.0 + (ratio * 3.0); // Passing is 1.0, Max is 4.0
+        }
+        // ---------------------
 
+        if (percentage < passingPercent) return system === '1_IS_BEST' ? 5.0 : 1.0;
+        if (percentage >= 100) return system === '1_IS_BEST' ? 1.0 : 5.0;
+        
         const ratio = (percentage - passingPercent) / (100 - passingPercent);
-        if (bestIs1) {
-            return 3.0 - (ratio * (3.0 - 1.0));
+        if (system === '1_IS_BEST') {
+            return 3.0 - (ratio * 2.0);
         } else {
-            return 3.0 + (ratio * (5.0 - 3.0));
+            return 3.0 + (ratio * 2.0);
         }
     },
-
-    calculateSubject: (subject) => {
+    calculateSubject: (subject, system) => {
         let totalPeriodWeight = 0;
         let earnedPeriodPercent = 0;
 
         subject.periods.forEach(period => {
             let totalCompWeight = 0;
             let earnedCompPercent = 0;
-
             period.components.forEach(comp => {
                 let sumScore = 0, sumMax = 0;
                 comp.items.forEach(item => {
                     sumScore += Number(item.score) || 0;
                     sumMax += Number(item.max) || 0;
                 });
-
                 const compPercent = sumMax > 0 ? (sumScore / sumMax) * 100 : 0;
                 const weight = Number(comp.weight) || 0;
-
                 earnedCompPercent += compPercent * (weight / 100);
                 totalCompWeight += weight;
             });
-
             const periodFinalPercent = totalCompWeight > 0 ? (earnedCompPercent / (totalCompWeight / 100)) : 0;
             const pWeight = Number(period.weight) || 0;
-
             earnedPeriodPercent += periodFinalPercent * (pWeight / 100);
             totalPeriodWeight += pWeight;
         });
 
         const subjectPercent = totalPeriodWeight > 0 ? (earnedPeriodPercent / (totalPeriodWeight / 100)) : 0;
-        const gradeEq = Calculator.interpolateGrade(subjectPercent, Number(subject.passingPercent) || 60, subject.bestIs1);
-
+        const gradeEq = Calculator.interpolateGrade(subjectPercent, Number(subject.passingPercent) || 60, system);
         return { percent: subjectPercent, equivalent: gradeEq, hasData: totalPeriodWeight > 0 };
+    },
+    calculatePeriod: (period, passingPercent) => {
+        let totalCompWeight = 0;
+        let earnedCompPercent = 0;
+
+        const comps = period.components.map(comp => {
+            let sumScore = 0, sumMax = 0;
+            comp.items.forEach(it => { sumScore += Number(it.score) || 0; sumMax += Number(it.max) || 0; });
+            const pct = sumMax > 0 ? (sumScore / sumMax) * 100 : 0;
+            const w = Number(comp.weight) || 0;
+            const contrib = pct * (w / 100); 
+            const hasData = sumMax > 0;
+            earnedCompPercent += contrib;
+            totalCompWeight += w;
+            return { id: comp.id, name: comp.name, weight: w, percent: pct, contrib, hasData };
+        });
+
+        const periodPercent = totalCompWeight > 0 ? (earnedCompPercent / (totalCompWeight / 100)) : 0;
+        const passing = Number(passingPercent) || 60;
+        const gap = passing - periodPercent;
+
+        return {
+            comps, percent: periodPercent, totalWeight: totalCompWeight, hasData: comps.some(c => c.hasData), passing, gap
+        };
     }
 };
 
@@ -291,7 +290,96 @@ function showAutosave() {
     setTimeout(() => el.classList.remove('visible'), 2000);
 }
 
+function gwaRatio(gwa, system) {
+    if (!gwa || gwa <= 0) return 0;
+    if (system === 'PERCENT') return Math.max(0, Math.min(100, gwa)) / 100;
+    
+    // --- NEW 4.0 LOGIC ---
+    if (system === '4_IS_BEST') {
+        const clamped = Math.max(0, Math.min(4, gwa));
+        return clamped / 4; // 4.0 fills the ring completely
+    }
+    // ---------------------
+
+    const clamped = Math.max(1, Math.min(5, gwa));
+    if (system === '1_IS_BEST') return (5 - clamped) / 4; 
+    return (clamped - 1) / 4; 
+}
+
+function pctTier(pct) {
+    if (pct >= 90) return 'excellent';
+    if (pct >= 75) return 'good';
+    if (pct >= 60) return 'ok';
+    return 'warn';
+}
+
+function gwaTier(gwa, system) {
+    if (!gwa) return 'muted';
+
+    if (system === 'PERCENT') {
+        if (gwa >= 90) return 'excellent';
+        if (gwa >= 75) return 'good';
+        if (gwa >= 60) return 'ok';
+        return 'warn';
+    }
+
+    // Thresholds proportionately mapped to 90%, 75%, and 60% underlying scores
+    if (system === '4_IS_BEST') {
+        if (gwa >= 3.25) return 'excellent'; // equates to 90%
+        if (gwa >= 2.125) return 'good';     // equates to 75% ("On Track")
+        if (gwa >= 1.0) return 'ok';         // equates to 60% ("Passing")
+        return 'warn';
+    }
+
+    if (system === '1_IS_BEST') {
+        if (gwa <= 1.5) return 'excellent';  // equates to 90%
+        if (gwa <= 2.25) return 'good';      // equates to 75%
+        if (gwa <= 3.0) return 'ok';         // equates to 60%
+        return 'warn';
+    } else { // 5.0 IS BEST
+        if (gwa >= 4.5) return 'excellent';  // equates to 90%
+        if (gwa >= 3.75) return 'good';      // equates to 75%
+        if (gwa >= 3.0) return 'ok';         // equates to 60%
+        return 'warn';
+    }
+}
+
+function tierLabel(tier) {
+    return { excellent: 'Excellent', good: 'On Track', ok: 'Passing', warn: 'At Risk', muted: 'No Data' }[tier];
+}
+
+function donutCard(label, val, system) {
+    const dash = '-';
+    const tier = gwaTier(val, system);
+    const ratio = gwaRatio(val, system);
+    const R = 45, C = 2 * Math.PI * R;
+    const offset = C * (1 - ratio);
+
+    let displayVal = dash;
+    if (val > 0) {
+        displayVal = system === 'PERCENT' ? val.toFixed(1) + '%' : val.toFixed(3);
+    }
+
+    return `
+        <div class="gwa-card">
+            <h3>${label}</h3>
+            <div class="gwa-donut tier-${tier}" role="img" aria-label="${label} GWA ${displayVal}">
+                <svg viewBox="0 0 100 100">
+                    <circle class="track" cx="50" cy="50" r="${R}"></circle>
+                    <circle class="arc" cx="50" cy="50" r="${R}"
+                        style="stroke-dasharray:${C.toFixed(1)}; stroke-dashoffset:${offset.toFixed(1)};"></circle>
+                </svg>
+                <div class="center">
+                    <div class="value">${displayVal}</div>
+                    <div class="label">${system === 'PERCENT' ? 'AVE' : 'GWA'}</div>
+                </div>
+            </div>
+            <span class="gwa-tier tier-${tier}"><span class="dot"></span>${tierLabel(tier)}</span>
+        </div>`;
+}
+
 function renderDashboard() {
+    const system = appData.settings?.gradingSystem || '1_IS_BEST';
     let cumulativeUnits = 0;
     let cumulativeGrades = 0;
     let yearGwa = 0, semGwa = 0;
@@ -301,7 +389,7 @@ function renderDashboard() {
         year.semesters.forEach(sem => {
             let semUnits = 0, semGrades = 0;
             sem.subjects.forEach(sub => {
-                const res = Calculator.calculateSubject(sub);
+                const res = Calculator.calculateSubject(sub, system);
                 if (res.hasData) {
                     const u = Number(sub.units) || 1;
                     semUnits += u;
@@ -318,22 +406,10 @@ function renderDashboard() {
     });
 
     const cumGwa = cumulativeUnits > 0 ? (cumulativeGrades / cumulativeUnits) : 0;
-    const dash = '—.———';
-
-    document.getElementById('gwa-summary').innerHTML = `
-        <div class="gwa-card">
-            <h3>Semester</h3>
-            <span class="stamp stamp--formal">${semGwa > 0 ? semGwa.toFixed(3) : dash}</span>
-        </div>
-        <div class="gwa-card">
-            <h3>Year</h3>
-            <span class="stamp stamp--formal stamp--blue">${yearGwa > 0 ? yearGwa.toFixed(3) : dash}</span>
-        </div>
-        <div class="gwa-card">
-            <h3>Cumulative</h3>
-            <span class="stamp stamp--formal stamp--green">${cumGwa > 0 ? cumGwa.toFixed(3) : dash}</span>
-        </div>
-    `;
+    document.getElementById('gwa-summary').innerHTML =
+        donutCard('Semester', semGwa, system) +
+        donutCard('Year', yearGwa, system) +
+        donutCard('Cumulative', cumGwa, system);
 }
 
 function renderTabs() {
@@ -364,65 +440,153 @@ function renderLedger() {
     const container = document.getElementById('ledger-content');
     const year = appData.years.find(y => y.id === state.currentYearId);
     const sem = year?.semesters.find(s => s.id === state.currentSemId);
+    const system = appData.settings?.gradingSystem || '1_IS_BEST';
 
     if (!sem) {
         container.innerHTML = '<p>No data selected. Create a year/semester to begin.</p>';
         return;
     }
 
-    let html = '';
+    const chartRows = sem.subjects.map(sub => {
+        const r = Calculator.calculateSubject(sub, system);
+        return { name: sub.name || 'Untitled', res: r };
+    });
+
+    const hasAny = chartRows.some(r => r.res.hasData);
+    let html = `
+        <div class="sem-chart">
+            <h3>Subject Performance &mdash; ${sem.name}</h3>
+            ${hasAny ? chartRows.map(r => {
+                if (!r.res.hasData) {
+                    return `<div class="row"><div class="name">${r.name}</div><div class="bar"></div><div class="val">-</div></div>`;
+                }
+                const tier = pctTier(r.res.percent);
+                const w = Math.max(2, Math.min(100, r.res.percent));
+                return `<div class="row">
+                    <div class="name">${r.name}</div>
+                    <div class="bar"><div class="fill tier-${tier}" style="width:${w.toFixed(1)}%"></div></div>
+                    <div class="val">${r.res.percent.toFixed(1)}%</div>
+                </div>`;
+            }).join('') : `<div class="empty">Add scores to see comparisons.</div>`}
+        </div>`;
+
     sem.subjects.forEach(sub => {
-        const res = Calculator.calculateSubject(sub);
+        const res = Calculator.calculateSubject(sub, system);
+        const tier = res.hasData ? pctTier(res.percent) : 'muted';
+        const passPct = Number(sub.passingPercent) || 60;
+        const barW = res.hasData ? Math.max(0, Math.min(100, res.percent)) : 0;
+        
+        const eqText = system === 'PERCENT' 
+            ? (res.hasData ? res.equivalent.toFixed(1) + '%' : 'no data') 
+            : (res.hasData ? 'GE ' + res.equivalent.toFixed(2) : 'no data');
+            
+        const stampText = system === 'PERCENT' 
+            ? `${res.percent.toFixed(1)}%`
+            : `${res.percent.toFixed(1)}% &rarr; ${res.equivalent.toFixed(2)}`;
 
         html += `
         <div class="subject-block">
             <div class="header-row">
                 <h2><input type="text" class="field field--subject" data-path="subName:${year.id}:${sem.id}:${sub.id}" value="${sub.name}" placeholder="Subject Name"></h2>
                 <button class="btn-delete" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Delete subject" title="Delete subject">&times;</button>
-                ${res.hasData ? `<div class="stamp">${res.percent.toFixed(1)}% &rarr; ${res.equivalent.toFixed(2)}</div>` : ''}
+                ${res.hasData ? `<div class="stamp">${stampText}</div>` : ''}
             </div>
-
+            <div class="subject-progress">
+                <div class="bar">
+                    <div class="fill tier-${tier}" style="width:${barW.toFixed(1)}%"></div>
+                    <div class="pass-marker" style="left:${passPct}%" data-label="pass ${passPct}%"></div>
+                </div>
+                <div class="pct">${res.hasData ? res.percent.toFixed(1) + '%' : '-'}</div>
+                <div class="eq">${eqText}</div>
+            </div>
             <div class="subject-meta">
                 <span>Units <input type="number" class="field w-xs" data-path="subUnits:${year.id}:${sem.id}:${sub.id}" value="${sub.units}"></span>
                 <span class="divider">&middot;</span>
                 <span>Pass % <input type="number" class="field w-xs" data-path="subPass:${year.id}:${sem.id}:${sub.id}" value="${sub.passingPercent}"></span>
-                <span class="divider">&middot;</span>
-                <select class="field field--select" data-path="subScale:${year.id}:${sem.id}:${sub.id}">
-                    <option value="true" ${sub.bestIs1 ? 'selected' : ''}>1.0 is Best</option>
-                    <option value="false" ${!sub.bestIs1 ? 'selected' : ''}>5.0 is Best</option>
-                </select>
             </div>
+${sub.periods.map(per => {
+                const pd = Calculator.calculatePeriod(per, sub.passingPercent);
+                const perTier = pd.hasData ? pctTier(pd.percent) : 'muted';
+                const gradeChip = pd.hasData ? `<span class="period-chip tier-${perTier}">${pd.percent.toFixed(2)}</span>` : '';
 
-            ${sub.periods.map(per => `
+                // 1. Separate the breakdown list...
+                const breakdownList = pd.hasData ? `
+                    <div class="breakdown-list">
+                        ${pd.comps.map(c => {
+                            const cTier = c.hasData ? pctTier(c.percent) : 'muted';
+                            return `
+                            <div class="bd-row">
+                                <div class="bd-main">
+                                    <div class="bd-name">${c.name || 'Untitled'}</div>
+                                    <div class="bd-meta">${c.weight}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
+                                    <div class="bd-track"><div class="bd-fill tier-${cTier}" style="width:${Math.max(0,Math.min(100,c.percent)).toFixed(1)}%"></div></div>
+                                </div>
+                                <div class="bd-val tier-${cTier}">${c.hasData ? c.percent.toFixed(1) : '-'}</div>
+                            </div>`;
+                        }).join('')}
+                    </div>` : `<div class="breakdown-empty">Add scores to see the period breakdown.</div>`;
+
+                // 2. ...from the Period Grade Card
+                const periodGradeCard = pd.hasData ? `
+                    <div class="period-grade tier-${perTier}" style="margin-top: 24px;">
+                        <div class="pg-label">Period Grade${per.weight ? ` (${per.weight}% of subject)` : ''}</div>
+                        <div class="pg-value">${pd.percent.toFixed(2)}</div>
+                        <div class="pg-rule"></div>
+                        <div class="pg-note">
+                            ${pd.gap > 0
+                                ? `<span class="warn-ico">⚠</span> Need ${pd.gap.toFixed(1)} more points to pass`
+                                : `<span class="ok-ico">✓</span> Passing by ${(-pd.gap).toFixed(1)} points`}
+                        </div>
+                    </div>` : '';
+
+                return `
                 <div class="period-block">
-                    <div class="header-row">
+                    <div class="header-row period-header">
+                        <span class="period-tag">${(per.name || 'Period').toUpperCase()}</span>
                         <h3><input type="text" class="field field--period" data-path="perName:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.name}"></h3>
                         <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
                         <span class="inline-setting">Weight <input type="number" class="field field--weight w-xs" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight}">%</span>
+                        <div class="period-grade-inline">
+                            <span class="pgi-label">Period Grade</span>
+                            ${gradeChip || '<span class="period-chip tier-muted">-</span>'}
+                        </div>
                     </div>
-
-                    ${per.components.map(comp => `
-                        <div class="component-block">
-                            <div class="header-row">
-                                <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
-                                <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
-                                <span class="inline-setting">Weight <input type="number" class="field field--weight w-xs" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight}">%</span>
-                            </div>
-
-                            ${comp.items.map((item) => `
-                                <div class="item-row">
-                                    <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}">
-                                    <span class="slash">/</span>
-                                    <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
-                                    <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
+                    <div class="period-grid">
+                        <div class="period-inputs">
+                            ${per.components.map(comp => `
+                                <div class="component-block">
+                                    <div class="header-row">
+                                        <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
+                                        <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
+                                        <span class="inline-setting">Weight <input type="number" class="field field--weight w-xs" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight}">%</span>
+                                    </div>
+                                    ${comp.items.map((item) => `
+                                        <div class="item-row">
+                                            <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}">
+                                            <span class="slash">/</span>
+                                            <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
+                                            <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
+                                        </div>
+                                    `).join('')}
+                                    <button class="btn-add" data-action="add-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}">+ Item</button>
                                 </div>
                             `).join('')}
-                            <button class="btn-add" data-action="add-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}">+ Item</button>
+                            <button class="btn-add" data-action="add-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}">+ Component</button>
+                            
+                            <!-- 3. Inject the Period Grade Card here to fill the left gap -->
+                            ${periodGradeCard} 
+                            
                         </div>
-                    `).join('')}
-                    <button class="btn-add" style="margin-left:2rem;" data-action="add-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}">+ Component</button>
-                </div>
-            `).join('')}
+                        <aside class="period-summary">
+                            <div class="breakdown-title">Period Breakdown</div>
+                            
+                            <!-- 4. Only render the list on the right -->
+                            ${breakdownList}
+                            
+                        </aside>
+                    </div>
+                </div>`;
+            }).join('')}
             <button class="btn-add" data-action="add-period" data-path="${year.id}:${sem.id}:${sub.id}">+ Period</button>
         </div>`;
     });
@@ -432,11 +596,19 @@ function renderLedger() {
 }
 
 function updateUI() {
+    document.getElementById('global-grade-system').value = appData.settings?.gradingSystem || '1_IS_BEST';
     renderTabs();
     renderLedger();
     renderDashboard();
     Storage.setRecord(appData);
 }
+
+// Global Grade System Listener
+document.getElementById('global-grade-system').addEventListener('change', (e) => {
+    if (!appData.settings) appData.settings = {};
+    appData.settings.gradingSystem = e.target.value;
+    updateUI();
+});
 
 document.addEventListener('click', (e) => {
     const tab = e.target.closest('.tab');
@@ -452,13 +624,11 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Changed to async to support the await customConfirm pattern
 document.addEventListener('click', async (e) => {
     const action = e.target.dataset.action;
     if (!action) return;
 
     const path = e.target.dataset.path?.split(':');
-
     if (action.startsWith('add-')) {
         const y = path ? appData.years.find(y => y.id === path[0]) : null;
         const s = y ? y.semesters.find(s => s.id === path[1]) : null;
@@ -477,7 +647,7 @@ document.addEventListener('click', async (e) => {
             currentYear.semesters.push(newSem);
             state.currentSemId = newSem.id;
         } else if (action === 'add-sub') {
-            s.subjects.push({ id: generateId(), name: 'New Subject', units: 3, bestIs1: true, passingPercent: 60, periods: [] });
+            s.subjects.push({ id: generateId(), name: 'New Subject', units: 3, passingPercent: 60, periods: [] });
         } else if (action === 'add-period') {
             sub.periods.push({ id: generateId(), name: 'New Period', weight: 0, components: [] });
         } else if (action === 'add-comp') {
@@ -489,7 +659,6 @@ document.addEventListener('click', async (e) => {
     }
 
     if (action.startsWith('delete-')) {
-        // Replaced native confirm with customConfirm
         const proceed = await customConfirm('Delete this record? This cannot be undone.');
         if (!proceed) return;
 
@@ -541,7 +710,6 @@ document.addEventListener('change', (e) => {
     if (field === 'subName') sub.name = val;
     if (field === 'subUnits') sub.units = val;
     if (field === 'subPass') sub.passingPercent = val;
-    if (field === 'subScale') sub.bestIs1 = (val === 'true');
     if (field === 'perName') p.name = val;
     if (field === 'perWeight') p.weight = val;
     if (field === 'compName') c.name = val;
@@ -559,9 +727,7 @@ document.addEventListener('input', (e) => {
 });
 
 document.getElementById('btn-reset').addEventListener('click', async () => {
-    // Replaced native confirm with customConfirm
     const proceed = await customConfirm('Are you sure you want to clear all ledger data? This cannot be undone.');
-    
     if (proceed) {
         await Storage.clearRecords();
         appData = getInitialData();
@@ -573,12 +739,14 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 
 async function initApp() {
     await handleAuth();
-
     const savedData = await Storage.getRecord();
     appData = savedData || getInitialData();
+    
+    if (!appData.settings) {
+        appData.settings = { gradingSystem: '1_IS_BEST' };
+    }
 
     state.currentYearId = appData.years[0]?.id || null;
-
     const currentYear = appData.years.find(y => y.id === state.currentYearId);
     state.currentSemId = currentYear?.semesters[0]?.id || null;
 

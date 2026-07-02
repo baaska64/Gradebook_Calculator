@@ -22,6 +22,13 @@
             </div>
             <div id="auth-controls">
                 <span id="user-email"></span>
+                <!-- NEW: Global Grading System Selector -->
+                <select id="global-grade-system" class="field field--select" style="margin-right: 8px;">
+                    <option value="1_IS_BEST">Grade (1.0 Best)</option>
+                    <option value="5_IS_BEST">Grade (5.0 Best)</option>
+                    <option value="4_IS_BEST">Grade (4.0 Best)</option>
+                    <option value="PERCENT">Percentage</option>
+                </select>
                 <button id="btn-download" onclick="window.open('https://github.com/baaska64/Grade_Ledger_App/releases/download/v1.0.0/grade_ledger.apk')">Download Android App</button>
                 <button id="btn-login" class="btn-primary">Login / Signup</button>
                 <button id="btn-delete-account" class="btn-danger" style="display: none;">Delete Account</button>
@@ -31,6 +38,7 @@
         </div>
         <div class="gwa-summary" id="gwa-summary"></div>
 
+        <!-- Modals... (Leave auth-modal and confirm-modal as they are) -->
         <div id="auth-modal" class="modal" style="display:none;">
             <div class="modal-content">
                 <h2 id="modal-title">Access your ledger</h2>
@@ -60,7 +68,6 @@
     <main class="ledger-container">
         <nav class="folder-tabs" id="year-tabs"></nav>
         <nav class="folder-tabs sub-tabs" id="sem-tabs"></nav>
-
         <div class="ledger-paper" id="ledger-content"></div>
     </main>
 
