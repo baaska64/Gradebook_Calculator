@@ -212,6 +212,7 @@ function getInitialData() {
                     name: 'Software Engineering',
                     units: 3,
                     passingPercent: 60,
+                    isCollapsed: false,
                     periods: [{
                         id: generateId(),
                         name: 'Midterms',
@@ -598,10 +599,14 @@ function renderLedger() {
         html += `
         <div class="subject-block">
             <div class="header-row">
+                <button class="btn-toggle-sub" data-action="toggle-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Toggle subject" title="Toggle subject">
+                    ${sub.isCollapsed ? '▶' : '▼'}
+                </button>
                 <h2><input type="text" class="field field--subject" data-path="subName:${year.id}:${sem.id}:${sub.id}" value="${sub.name}" placeholder="Subject Name"></h2>
                 <button class="btn-delete" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Delete subject" title="Delete subject">&times;</button>
                 ${res.hasData ? `<div class="stamp">${stampText}</div>` : ''}
             </div>
+            
             <div class="subject-progress">
                 <div class="bar">
                     <div class="fill tier-${tier}" style="width:${barW.toFixed(1)}%"></div>
@@ -610,181 +615,186 @@ function renderLedger() {
                 <div class="pct">${res.hasData ? res.percent.toFixed(1) + '%' : '-'}</div>
                 <div class="eq">${eqText}</div>
             </div>
-            <div class="subject-meta">
+            
+            <div class="subject-meta" style="${sub.isCollapsed ? 'border-bottom: none; margin-bottom: 0; padding-bottom: 0;' : ''}">
                 <span>Units <input type="number" class="field w-xs" data-path="subUnits:${year.id}:${sem.id}:${sub.id}" value="${sub.units}"></span>
                 <span class="divider">&middot;</span>
                 <span>Pass % <input type="number" class="field w-xs" data-path="subPass:${year.id}:${sem.id}:${sub.id}" value="${sub.passingPercent}"></span>
                 ${pWarning}
+                ${sub.isCollapsed && res.hasData ? `<span class="divider">&middot;</span><span>Status: <strong style="color: var(--text);">${tierLabel(tier)}</strong></span>` : ''}
             </div>
-${sub.periods.map(per => {
-                const pd = Calculator.calculatePeriod(per, sub.passingPercent);
-                const perTier = pd.hasData ? pctTier(pd.percent) : 'muted';
-                const gradeChip = pd.hasData ? `<span class="period-chip tier-${perTier}">${pd.percent.toFixed(2)}</span>` : '';
 
-                let pAutoW = pBlank > 0 ? (Math.max(0, 100 - pExplicit) / pBlank) : 0;
+            <div class="subject-content" style="display: ${sub.isCollapsed ? 'none' : 'block'};">
+    ${sub.periods.map(per => {
+                    const pd = Calculator.calculatePeriod(per, sub.passingPercent);
+                    const perTier = pd.hasData ? pctTier(pd.percent) : 'muted';
+                    const gradeChip = pd.hasData ? `<span class="period-chip tier-${perTier}">${pd.percent.toFixed(2)}</span>` : '';
 
-                let cExplicit = 0, cBlank = 0;
-                per.components.forEach(c => { if (c.weight !== '' && c.weight !== null && c.weight !== undefined) cExplicit += Number(c.weight) || 0; else cBlank++; });
-                let cWarning = getWeightWarning(cExplicit, cBlank, per.components.map(c => c.weight), 'Component');
+                    let pAutoW = pBlank > 0 ? (Math.max(0, 100 - pExplicit) / pBlank) : 0;
 
-                const breakdownList = pd.hasData ? `
-                    <div class="breakdown-list">
-                        ${pd.comps.map(c => {
-                            const cTier = c.hasData ? pctTier(c.percent) : 'muted';
-                            return `
-                            <div class="bd-row">
-                                <div class="bd-main">
-                                    <div class="bd-name">${c.name || 'Untitled'}</div>
-                                    <div class="bd-meta">${c.weight.toFixed(1)}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
-                                    <div class="bd-track"><div class="bd-fill tier-${cTier}" style="width:${Math.max(0,Math.min(100,c.percent)).toFixed(1)}%"></div></div>
-                                </div>
-                                <div class="bd-val tier-${cTier}">${c.hasData ? c.percent.toFixed(1) : '-'}</div>
-                            </div>`;
-                        }).join('')}
-                    </div>` : `<div class="breakdown-empty">Add scores to see the period breakdown.</div>`;
+                    let cExplicit = 0, cBlank = 0;
+                    per.components.forEach(c => { if (c.weight !== '' && c.weight !== null && c.weight !== undefined) cExplicit += Number(c.weight) || 0; else cBlank++; });
+                    let cWarning = getWeightWarning(cExplicit, cBlank, per.components.map(c => c.weight), 'Component');
 
-                const periodGradeCard = pd.hasData ? `
-                    <div class="period-grade tier-${perTier}" style="margin-top: 24px;">
-                        <div class="pg-label">Period Grade${per.weight !== '' && per.weight !== undefined ? ` (${per.weight}% of subject)` : ` (${pAutoW.toFixed(1)}% auto)`}</div>
-                        <div class="pg-value">${pd.percent.toFixed(2)}</div>
-                        <div class="pg-rule"></div>
-                        <div class="pg-note">
-                            ${pd.gap > 0
-                                ? `<span class="warn-ico">⚠</span> Need ${pd.gap.toFixed(1)} more points to pass`
-                                : `<span class="ok-ico">✓</span> Passing by ${(-pd.gap).toFixed(1)} points`}
-                        </div>
-                    </div>` : '';
-
-                return `
-                <div class="period-block">
-                    <div class="header-row period-header">
-                        <span class="period-tag">${(per.name || 'Period').toUpperCase()}</span>
-                        <h3><input type="text" class="field field--period" data-path="perName:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.name}"></h3>
-                        <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
-                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight !== undefined ? per.weight : ''}" placeholder="${pAutoW.toFixed(1)}%">%</span>
-                        ${cWarning}
-                        <div class="period-grade-inline">
-                            <span class="pgi-label">Period Grade</span>
-                            ${gradeChip || '<span class="period-chip tier-muted">-</span>'}
-                        </div>
-                    </div>
-                    <div class="period-grid">
-                        <div class="period-inputs">
-                            ${per.components.map(comp => {
-                                let cAutoW = cBlank > 0 ? (Math.max(0, 100 - cExplicit) / cBlank) : 0;
-                                
-                                let iExplicit = 0, iBlank = 0;
-                                comp.items.forEach(i => { if (i.weight !== '' && i.weight !== null && i.weight !== undefined) iExplicit += Number(i.weight) || 0; else iBlank++; });
-                                let iWarning = getWeightWarning(iExplicit, iBlank, comp.items.map(i => i.weight), 'Item');
-
+                    const breakdownList = pd.hasData ? `
+                        <div class="breakdown-list">
+                            ${pd.comps.map(c => {
+                                const cTier = c.hasData ? pctTier(c.percent) : 'muted';
                                 return `
-                                <div class="component-block">
-                                    <div class="header-row">
-                                        <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
-                                        <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
-                                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight !== undefined ? comp.weight : ''}" placeholder="${cAutoW.toFixed(1)}%">%</span>
-                                        ${iWarning}
+                                <div class="bd-row">
+                                    <div class="bd-main">
+                                        <div class="bd-name">${c.name || 'Untitled'}</div>
+                                        <div class="bd-meta">${c.weight.toFixed(1)}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
+                                        <div class="bd-track"><div class="bd-fill tier-${cTier}" style="width:${Math.max(0,Math.min(100,c.percent)).toFixed(1)}%"></div></div>
                                     </div>
-                                    ${comp.items.map((item) => {
-                                        let iAutoW = iBlank > 0 ? (Math.max(0, 100 - iExplicit) / iBlank) : 0;
-                                        
-                                        return `
-                                        <div class="item-row">
-                                            <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}" placeholder="-">
-                                            <span class="slash">/</span>
-                                            <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
-                                            
-                                            <span style="color: var(--text-muted); margin-left: 8px; font-size: 11px;">Wt:</span>
-                                            <input type="number" step="1" class="field" style="width: 80px;" data-path="itemWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.weight !== undefined ? item.weight : ''}" placeholder="${iAutoW.toFixed(1)}%">
-                                            
-                                            <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
-                                        </div>
-                                    `}).join('')}
-                                    <button class="btn-add" data-action="add-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}">+ Item</button>
-                                </div>
-                            `}).join('')}
-                            <button class="btn-add" data-action="add-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}">+ Component</button>
-                            ${periodGradeCard} 
-                        </div>
-                        <aside class="period-summary">
-                            <div class="breakdown-title">Period Breakdown</div>
-                            ${breakdownList}
-                        </aside>
-                    </div>
-                </div>`;
-            }).join('')}
-            <button class="btn-add" data-action="add-period" data-path="${year.id}:${sem.id}:${sub.id}">+ Period</button>
-
-            ${(() => {
-                const isGpaSystem = system !== 'PERCENT';
-                const targetMode = sub.targetMode || 'PERCENT';
-                let targetValue = sub.targetValue;
-                if (targetValue === undefined) targetValue = isGpaSystem && targetMode === 'GPA' ? 1.0 : (Number(sub.passingPercent) || 60);
-
-                let targetPercent = targetMode === 'GPA' && isGpaSystem 
-                    ? Calculator.percentFromGpa(Number(targetValue), Number(sub.passingPercent) || 60, system)
-                    : Number(targetValue);
-
-                const needed = targetPercent - res.absoluteEarned;
-                const remainingWeight = res.absoluteAvailable;
-                
-                let targetMsg = '';
-                let distributionHtml = '';
-
-                const buildDistributionHtml = (emptyComps, reqPct, goalText) => {
-                    if (emptyComps.length === 0) return '';
-                    return `
-                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider); width: 100%;">
-                        <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;">Required component scores ${goalText}:</div>
-                        <div style="display: grid; gap: 8px; font-size: 13px;">
-                            ${emptyComps.map(c => {
-                                const scoreNeeded = reqPct * c.sumMax;
-                                return `
-                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); padding: 8px 12px; border-radius: 6px; border: 1px dashed var(--border-strong);">
-                                    <span style="font-weight: 500;">${c.periodName} &mdash; ${c.name}</span>
-                                    <span style="font-family: var(--font-data); font-weight: 600; color: var(--primary);">
-                                        ${scoreNeeded.toFixed(1)} <span style="color: var(--text-subtle); font-size: 12px; font-weight: 400;">/ ${c.sumMax}</span> 
-                                        <span style="margin-left: 8px; font-size: 11px; background: var(--primary-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px;">${(reqPct * 100).toFixed(1)}%</span>
-                                    </span>
+                                    <div class="bd-val tier-${cTier}">${c.hasData ? c.percent.toFixed(1) : '-'}</div>
                                 </div>`;
                             }).join('')}
+                        </div>` : `<div class="breakdown-empty">Add scores to see the period breakdown.</div>`;
+
+                    const periodGradeCard = pd.hasData ? `
+                        <div class="period-grade tier-${perTier}" style="margin-top: 24px;">
+                            <div class="pg-label">Period Grade${per.weight !== '' && per.weight !== undefined ? ` (${per.weight}% of subject)` : ` (${pAutoW.toFixed(1)}% auto)`}</div>
+                            <div class="pg-value">${pd.percent.toFixed(2)}</div>
+                            <div class="pg-rule"></div>
+                            <div class="pg-note">
+                                ${pd.gap > 0
+                                    ? `<span class="warn-ico">⚠</span> Need ${pd.gap.toFixed(1)} more points to pass`
+                                    : `<span class="ok-ico">✓</span> Passing by ${(-pd.gap).toFixed(1)} points`}
+                            </div>
+                        </div>` : '';
+
+                    return `
+                    <div class="period-block">
+                        <div class="header-row period-header">
+                            <span class="period-tag">${(per.name || 'Period').toUpperCase()}</span>
+                            <h3><input type="text" class="field field--period" data-path="perName:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.name}"></h3>
+                            <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
+                            <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight !== undefined ? per.weight : ''}" placeholder="${pAutoW.toFixed(1)}%">%</span>
+                            ${cWarning}
+                            <div class="period-grade-inline">
+                                <span class="pgi-label">Period Grade</span>
+                                ${gradeChip || '<span class="period-chip tier-muted">-</span>'}
+                            </div>
+                        </div>
+                        <div class="period-grid">
+                            <div class="period-inputs">
+                                ${per.components.map(comp => {
+                                    let cAutoW = cBlank > 0 ? (Math.max(0, 100 - cExplicit) / cBlank) : 0;
+                                    
+                                    let iExplicit = 0, iBlank = 0;
+                                    comp.items.forEach(i => { if (i.weight !== '' && i.weight !== null && i.weight !== undefined) iExplicit += Number(i.weight) || 0; else iBlank++; });
+                                    let iWarning = getWeightWarning(iExplicit, iBlank, comp.items.map(i => i.weight), 'Item');
+
+                                    return `
+                                    <div class="component-block">
+                                        <div class="header-row">
+                                            <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
+                                            <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
+                                            <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight !== undefined ? comp.weight : ''}" placeholder="${cAutoW.toFixed(1)}%">%</span>
+                                            ${iWarning}
+                                        </div>
+                                        ${comp.items.map((item) => {
+                                            let iAutoW = iBlank > 0 ? (Math.max(0, 100 - iExplicit) / iBlank) : 0;
+                                            
+                                            return `
+                                            <div class="item-row">
+                                                <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}" placeholder="-">
+                                                <span class="slash">/</span>
+                                                <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
+                                                
+                                                <span style="color: var(--text-muted); margin-left: 8px; font-size: 11px;">Wt:</span>
+                                                <input type="number" step="1" class="field" style="width: 80px;" data-path="itemWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.weight !== undefined ? item.weight : ''}" placeholder="${iAutoW.toFixed(1)}%">
+                                                
+                                                <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
+                                            </div>
+                                        `}).join('')}
+                                        <button class="btn-add" data-action="add-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}">+ Item</button>
+                                    </div>
+                                `}).join('')}
+                                <button class="btn-add" data-action="add-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}">+ Component</button>
+                                ${periodGradeCard} 
+                            </div>
+                            <aside class="period-summary">
+                                <div class="breakdown-title">Period Breakdown</div>
+                                ${breakdownList}
+                            </aside>
                         </div>
                     </div>`;
-                };
+                }).join('')}
+                <button class="btn-add" data-action="add-period" data-path="${year.id}:${sem.id}:${sub.id}">+ Period</button>
 
-                if (needed <= 0) targetMsg = `<span class="ok-ico">✓</span> You have reached your desired grade!`;
-                else if (remainingWeight <= 0 && needed > 0) targetMsg = `<span class="warn-ico">⚠</span> All components are filled. Your target grade cannot be reached.`;
-                else if (needed > remainingWeight) {
-                    const passNeeded = (Number(sub.passingPercent) || 60) - res.absoluteEarned;
-                    if (passNeeded <= 0) targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you have already passed this subject!`;
-                    else if (passNeeded > remainingWeight) targetMsg = `<span class="warn-ico" style="color: var(--danger);">⚠</span> Desired grade is impossible, and unfortunately, you cannot pass this subject anymore.`;
-                    else {
-                        targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you can still pass this subject!`;
-                        distributionHtml = buildDistributionHtml(res.emptyComponents, passNeeded / remainingWeight, 'to pass the subject');
+                ${(() => {
+                    const isGpaSystem = system !== 'PERCENT';
+                    const targetMode = sub.targetMode || 'PERCENT';
+                    let targetValue = sub.targetValue;
+                    if (targetValue === undefined) targetValue = isGpaSystem && targetMode === 'GPA' ? 1.0 : (Number(sub.passingPercent) || 60);
+
+                    let targetPercent = targetMode === 'GPA' && isGpaSystem 
+                        ? Calculator.percentFromGpa(Number(targetValue), Number(sub.passingPercent) || 60, system)
+                        : Number(targetValue);
+
+                    const needed = targetPercent - res.absoluteEarned;
+                    const remainingWeight = res.absoluteAvailable;
+                    
+                    let targetMsg = '';
+                    let distributionHtml = '';
+
+                    const buildDistributionHtml = (emptyComps, reqPct, goalText) => {
+                        if (emptyComps.length === 0) return '';
+                        return `
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider); width: 100%;">
+                            <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;">Required component scores ${goalText}:</div>
+                            <div style="display: grid; gap: 8px; font-size: 13px;">
+                                ${emptyComps.map(c => {
+                                    const scoreNeeded = reqPct * c.sumMax;
+                                    return `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); padding: 8px 12px; border-radius: 6px; border: 1px dashed var(--border-strong);">
+                                        <span style="font-weight: 500;">${c.periodName} &mdash; ${c.name}</span>
+                                        <span style="font-family: var(--font-data); font-weight: 600; color: var(--primary);">
+                                            ${scoreNeeded.toFixed(1)} <span style="color: var(--text-subtle); font-size: 12px; font-weight: 400;">/ ${c.sumMax}</span> 
+                                            <span style="margin-left: 8px; font-size: 11px; background: var(--primary-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px;">${(reqPct * 100).toFixed(1)}%</span>
+                                        </span>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </div>`;
+                    };
+
+                    if (needed <= 0) targetMsg = `<span class="ok-ico">✓</span> You have reached your desired grade!`;
+                    else if (remainingWeight <= 0 && needed > 0) targetMsg = `<span class="warn-ico">⚠</span> All components are filled. Your target grade cannot be reached.`;
+                    else if (needed > remainingWeight) {
+                        const passNeeded = (Number(sub.passingPercent) || 60) - res.absoluteEarned;
+                        if (passNeeded <= 0) targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you have already passed this subject!`;
+                        else if (passNeeded > remainingWeight) targetMsg = `<span class="warn-ico" style="color: var(--danger);">⚠</span> Desired grade is impossible, and unfortunately, you cannot pass this subject anymore.`;
+                        else {
+                            targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you can still pass this subject!`;
+                            distributionHtml = buildDistributionHtml(res.emptyComponents, passNeeded / remainingWeight, 'to pass the subject');
+                        }
+                    } else {
+                        targetMsg = `You need <strong>${needed.toFixed(1)}</strong> more points (out of the remaining ${remainingWeight.toFixed(1)}% weight) to reach ${targetPercent.toFixed(1)}%.`;
+                        distributionHtml = buildDistributionHtml(res.emptyComponents, needed / remainingWeight, 'for your desired grade');
                     }
-                } else {
-                    targetMsg = `You need <strong>${needed.toFixed(1)}</strong> more points (out of the remaining ${remainingWeight.toFixed(1)}% weight) to reach ${targetPercent.toFixed(1)}%.`;
-                    distributionHtml = buildDistributionHtml(res.emptyComponents, needed / remainingWeight, 'for your desired grade');
-                }
 
-                return `
-                <div class="target-calculator" style="display: block;">
-                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-                        <div class="tc-header">Subject Target Tracker</div>
-                        <div class="tc-body" style="margin-left: 10px; gap: 8px;">
-                            ${isGpaSystem ? `
-                                <select class="field" data-path="subTargetMode:${year.id}:${sem.id}:${sub.id}" style="width: auto;">
-                                    <option value="PERCENT" ${targetMode === 'PERCENT' ? 'selected' : ''}>Target %</option>
-                                    <option value="GPA" ${targetMode === 'GPA' ? 'selected' : ''}>Target GPA</option>
-                                </select>
-                            ` : ''}
-                            <label>Goal: <input type="number" class="field w-xs" data-path="subTargetVal:${year.id}:${sem.id}:${sub.id}" value="${targetValue}" step="${targetMode === 'GPA' ? '0.01' : '1'}"></label>
-                            <div class="tc-result">${targetMsg}</div>
+                    return `
+                    <div class="target-calculator" style="display: block;">
+                        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                            <div class="tc-header">Subject Target Tracker</div>
+                            <div class="tc-body" style="margin-left: 10px; gap: 8px;">
+                                ${isGpaSystem ? `
+                                    <select class="field" data-path="subTargetMode:${year.id}:${sem.id}:${sub.id}" style="width: auto;">
+                                        <option value="PERCENT" ${targetMode === 'PERCENT' ? 'selected' : ''}>Target %</option>
+                                        <option value="GPA" ${targetMode === 'GPA' ? 'selected' : ''}>Target GPA</option>
+                                    </select>
+                                ` : ''}
+                                <label>Goal: <input type="number" class="field w-xs" data-path="subTargetVal:${year.id}:${sem.id}:${sub.id}" value="${targetValue}" step="${targetMode === 'GPA' ? '0.01' : '1'}"></label>
+                                <div class="tc-result">${targetMsg}</div>
+                            </div>
                         </div>
-                    </div>
-                    ${distributionHtml}
-                </div>`;
-            })()}
+                        ${distributionHtml}
+                    </div>`;
+                })()}
+            </div>
         </div>`;
     });
 
@@ -824,6 +834,18 @@ document.addEventListener('click', async (e) => {
     const action = e.target.dataset.action;
     if (!action) return;
     const path = e.target.dataset.path?.split(':');
+    
+    if (action === 'toggle-sub') {
+        const y = path ? appData.years.find(y => y.id === path[0]) : null;
+        const s = y ? y.semesters.find(s => s.id === path[1]) : null;
+        const sub = s ? s.subjects.find(sub => sub.id === path[2]) : null;
+        if (sub) {
+            sub.isCollapsed = !sub.isCollapsed;
+            updateUI();
+        }
+        return;
+    }
+    
     if (action.startsWith('add-')) {
         const y = path ? appData.years.find(y => y.id === path[0]) : null;
         const s = y ? y.semesters.find(s => s.id === path[1]) : null;
@@ -842,7 +864,7 @@ document.addEventListener('click', async (e) => {
             currentYear.semesters.push(newSem);
             state.currentSemId = newSem.id;
         } else if (action === 'add-sub') {
-            s.subjects.push({ id: generateId(), name: 'New Subject', units: 3, passingPercent: 60, periods: [] });
+            s.subjects.push({ id: generateId(), name: 'New Subject', units: 3, passingPercent: 60, isCollapsed: false, periods: [] });
         } else if (action === 'add-period') {
             sub.periods.push({ id: generateId(), name: 'New Period', weight: '', components: [] });
         } else if (action === 'add-comp') {
