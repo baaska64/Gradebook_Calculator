@@ -160,7 +160,6 @@ input[type=number] {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     border-bottom: none;
     box-shadow: var(--shadow-sm);
-    overflow: hidden;
 }
 
 [data-theme="dark"] .dashboard {
@@ -177,11 +176,16 @@ input[type=number] {
     flex-wrap: nowrap; 
     padding: 22px 28px;
     border-bottom: 1px solid var(--divider);
+    position: relative;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
-.dashboard-header > div:first-child {
-    flex: 0 0 auto; 
-    white-space: nowrap; 
+.header-title-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 .dashboard-header h1 {
@@ -199,13 +203,34 @@ input[type=number] {
     font-weight: 400;
 }
 
+#btn-menu-toggle {
+    display: inline-flex;
+    transition: transform 0.3s ease;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+#btn-menu-toggle.active {
+    transform: rotate(90deg);
+}
+
 #auth-controls {
     display: flex;
     gap: 10px;
     align-items: center;
     justify-content: flex-end;
-    flex-wrap: wrap; 
+    flex-wrap: nowrap;
     flex: 1 1 auto;
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    white-space: nowrap;
+    pointer-events: none;
+}
+#auth-controls.open {
+    max-width: 900px;
+    opacity: 1;
+    pointer-events: auto;
 }
 
 #user-email {
@@ -221,18 +246,6 @@ input[type=number] {
     overflow: hidden;
     text-overflow: ellipsis;
     display: inline-block;
-}
-
-@media (max-width: 950px) {
-    .dashboard-header {
-        flex-wrap: wrap;
-        justify-content: center;
-        text-align: center;
-    }
-    #auth-controls {
-        justify-content: center;
-        width: 100%;
-    }
 }
 
 /* ---------- Theme Button ---------- */
@@ -950,9 +963,74 @@ button:hover {
     max-width: calc(100vw - 32px);
     box-shadow: var(--shadow-lg);
 }
-.modal-content h2 { margin-bottom: 18px; color: var(--text); }
+.modal-content h2 { margin-bottom: 18px; color: var(--text); text-align: center; }
 .modal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
-#auth-message { font-family: var(--font-ui); font-size: 12px; margin-top: 12px; color: var(--danger); }
+#auth-message { font-family: var(--font-ui); font-size: 12px; margin-top: 12px; color: var(--danger); text-align: center; }
+
+/* Google Auth Button & Modal Additions */
+.auth-modal-content {
+    width: 420px;
+    padding: 32px;
+}
+.btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    box-shadow: var(--shadow-xs);
+    margin-bottom: 8px;
+}
+.btn-google:hover {
+    background: var(--surface-2);
+    box-shadow: var(--shadow-sm);
+}
+.modal-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 16px 0 20px;
+}
+.modal-divider::before, .modal-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid var(--divider);
+}
+.modal-divider span {
+    padding: 0 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+.auth-actions {
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+}
+.auth-actions button {
+    width: 100%;
+    padding: 12px;
+}
+.btn-cancel-modal {
+    background: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    color: var(--text-muted);
+}
+.btn-cancel-modal:hover {
+    background: var(--surface-3);
+    color: var(--text);
+}
 
 /* ---------- Sync indicator ---------- */
 #sync-status {
@@ -1152,10 +1230,39 @@ button:hover {
 }
 @media (max-width: 720px) {
     body { padding: 16px 12px 60px; }
-    .dashboard-header { padding: 16px 18px; gap: 12px; }
-    #auth-controls { width: 100%; gap: 6px; }
-    #user-email { width: 100%; margin-bottom: 4px; text-align: center; }
-    #auth-controls button { flex: 1; padding: 8px 10px; font-size: 12px; text-align: center; }
+    .dashboard-header { padding: 16px 18px; position: relative; }
+    .header-title-container { width: auto; flex: 0 0 auto; }
+    #btn-menu-toggle { display: inline-flex !important; }
+    
+    #auth-controls { 
+        display: none; 
+        position: absolute;
+        top: 100%;
+        right: 18px;
+        background: var(--surface);
+        border: 1px solid var(--border-strong);
+        border-radius: var(--radius);
+        padding: 16px;
+        box-shadow: var(--shadow-lg);
+        z-index: 2000;
+        flex-direction: column;
+        gap: 12px;
+        width: 220px;
+        max-width: none;
+        opacity: 1;
+        transition: none;
+        white-space: normal;
+        pointer-events: auto;
+        overflow: visible;
+    }
+    #auth-controls.open {
+        display: flex;
+        animation: fadeIn 0.15s ease;
+    }
+    #auth-controls button { width: 100%; margin: 0; flex: none; padding: 10px; font-size: 13px; text-align: center; }
+    #btn-theme { height: auto; justify-content: center; }
+    #user-email { width: 100%; margin: 0 0 4px 0; text-align: center; max-width: none; display: block; }
+    #global-grade-system { flex: none; width: 100%; margin-right: 0 !important; }
     .gwa-summary { grid-template-columns: 1fr; padding: 16px 18px; gap: 10px; }
     .gwa-card + .gwa-card { border-left: none; border-top: 1px solid var(--border); }
     .folder-tabs { padding: 12px 14px 0; column-gap: 4px; row-gap: 4px; }

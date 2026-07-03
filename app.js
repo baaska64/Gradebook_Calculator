@@ -157,6 +157,15 @@ async function handleAuth() {
     updateAuthUI();
 
     document.getElementById('btn-login').onclick = () => toggleModal(true);
+    document.getElementById('btn-google-login').onclick = async () => {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin
+            }
+        });
+        if (error) document.getElementById('auth-message').textContent = error.message;
+    };
     document.getElementById('btn-submit-login').onclick = async () => {
         const email = document.getElementById('auth-email').value;
         const password = document.getElementById('auth-password').value;
@@ -171,6 +180,57 @@ async function handleAuth() {
         if (error) document.getElementById('auth-message').textContent = error.message;
         else alert('Signup successful! Please check your email to verify your account.');
     };
+    document.getElementById('btn-forgot-password').onclick = async () => {
+        const msg = document.getElementById('auth-message');
+        const lastRequest = localStorage.getItem('lastPasswordResetTime');
+        const now = Date.now();
+        const cooldown = 5 * 60 * 1000; // 5 minutes
+        
+        if (lastRequest && (now - parseInt(lastRequest)) < cooldown) {
+            const remaining = Math.ceil((cooldown - (now - parseInt(lastRequest))) / 1000 / 60);
+            msg.textContent = `Please wait ${remaining} minute(s) before requesting another link.`;
+            return;
+        }
+
+        const email = document.getElementById('auth-email').value;
+        if (!email) {
+            msg.textContent = 'Please enter your email address first.';
+            return;
+        }
+        
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+            redirectTo: window.location.origin
+        });
+        
+        if (error) {
+            msg.textContent = error.message;
+        } else {
+            localStorage.setItem('lastPasswordResetTime', Date.now().toString());
+            msg.textContent = 'Password reset email sent. Please check your inbox.';
+        }
+    };
+    document.getElementById('btn-submit-reset').onclick = async () => {
+        const newPassword = document.getElementById('new-password').value;
+        const msg = document.getElementById('reset-message');
+        if (!newPassword || newPassword.length < 6) {
+            msg.textContent = 'Password must be at least 6 characters.';
+            return;
+        }
+        
+        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+        if (error) {
+            msg.textContent = error.message;
+        } else {
+            alert('Password updated successfully!');
+            document.getElementById('reset-password-modal').style.display = 'none';
+        }
+    };
+    
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+            document.getElementById('reset-password-modal').style.display = 'flex';
+        }
+    });
     document.getElementById('btn-delete-account').onclick = async () => {
         const proceed = await customConfirm('PERMANENT ACTION: This will delete your account and all stored grades. Proceed?');
         if (!proceed) return;
@@ -1653,5 +1713,19 @@ async function initApp() {
 
     updateUI();
 }
+
+document.addEventListener('click', (e) => {
+    const toggleBtn = e.target.closest('#btn-menu-toggle');
+    const authControls = document.getElementById('auth-controls');
+    const menuBtn = document.getElementById('btn-menu-toggle');
+    
+    if (toggleBtn) {
+        authControls.classList.toggle('open');
+        menuBtn.classList.toggle('active');
+    } else if (authControls && !authControls.contains(e.target) && !e.target.closest('#btn-menu-toggle')) {
+        authControls.classList.remove('open');
+        menuBtn.classList.remove('active');
+    }
+});
 
 initApp();
