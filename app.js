@@ -6,6 +6,31 @@ let currentUser = null;
 let isOnline = navigator.onLine;
 let hasPendingSync = false;
 
+// --- Theme Management ---
+const themeBtn = document.getElementById('btn-theme');
+const currentTheme = localStorage.getItem('grade_ledger_theme') || 'light';
+
+if (currentTheme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    if (themeBtn) themeBtn.textContent = 'Light Mode';
+}
+
+if (themeBtn) {
+    themeBtn.addEventListener('click', () => {
+        let theme = document.documentElement.getAttribute('data-theme');
+        if (theme === 'dark') {
+            document.documentElement.removeAttribute('data-theme');
+            localStorage.setItem('grade_ledger_theme', 'light');
+            themeBtn.textContent = 'Dark Mode';
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('grade_ledger_theme', 'dark');
+            themeBtn.textContent = 'Light Mode';
+        }
+    });
+}
+// ------------------------
+
 function updateSyncUI(state) {
     const el = document.getElementById('sync-status');
     el.className = 'sync-status ' + state;
@@ -190,12 +215,12 @@ function getInitialData() {
                     periods: [{
                         id: generateId(),
                         name: 'Midterms',
-                        weight: 50,
+                        weight: '', 
                         components: [{
                             id: generateId(),
                             name: 'Exams',
-                            weight: 100,
-                            items: [{ id: generateId(), score: 85, max: 100 }]
+                            weight: '',
+                            items: [{ id: generateId(), score: '', max: 100, weight: '' }]
                         }]
                     }]
                 }]
@@ -208,17 +233,15 @@ let appData = null;
 let state = { currentYearId: null, currentSemId: null };
 
 const Calculator = {
-interpolateGrade: (percentage, passingPercent, system) => {
+    interpolateGrade: (percentage, passingPercent, system) => {
         if (system === 'PERCENT') return percentage;
         
-        // --- NEW 4.0 LOGIC ---
         if (system === '4_IS_BEST') {
             if (percentage < passingPercent) return 0.0;
             if (percentage >= 100) return 4.0;
             const ratio = (percentage - passingPercent) / (100 - passingPercent);
-            return 1.0 + (ratio * 3.0); // Passing is 1.0, Max is 4.0
+            return 1.0 + (ratio * 3.0); 
         }
-        // ---------------------
 
         if (percentage < passingPercent) return system === '1_IS_BEST' ? 5.0 : 1.0;
         if (percentage >= 100) return system === '1_IS_BEST' ? 1.0 : 5.0;
@@ -230,56 +253,162 @@ interpolateGrade: (percentage, passingPercent, system) => {
             return 3.0 + (ratio * 2.0);
         }
     },
+
+    percentFromGpa: (gpa, passingPercent, system) => {
+        passingPercent = Number(passingPercent) || 60;
+        let ratio = 0;
+        
+        if (system === '4_IS_BEST') {
+            ratio = Math.max(0, Math.min(1, (gpa - 1.0) / 3.0));
+        } else if (system === '1_IS_BEST') {
+            ratio = Math.max(0, Math.min(1, (3.0 - gpa) / 2.0));
+        } else if (system === '5_IS_BEST') {
+            ratio = Math.max(0, Math.min(1, (gpa - 3.0) / 2.0));
+        } else {
+            return gpa; 
+        }
+        return passingPercent + (ratio * (100 - passingPercent));
+    },
+    
     calculateSubject: (subject, system) => {
-        let totalPeriodWeight = 0;
-        let earnedPeriodPercent = 0;
+        let absoluteEarned = 0;
+        let emptyTargets = [];
+        let absoluteAvailable = 0;
+        let hasAnyInput = false;
+
+        let pExplicitSum = 0, pBlankCount = 0;
+        subject.periods.forEach(p => {
+            if (p.weight !== '' && p.weight !== null && p.weight !== undefined) pExplicitSum += Number(p.weight) || 0;
+            else pBlankCount++;
+        });
+        let pAutoWeight = pBlankCount > 0 ? Math.max(0, 100 - pExplicitSum) / pBlankCount : 0;
+        let totalPeriodWeightSum = pExplicitSum + (pBlankCount * pAutoWeight);
 
         subject.periods.forEach(period => {
-            let totalCompWeight = 0;
-            let earnedCompPercent = 0;
-            period.components.forEach(comp => {
-                let sumScore = 0, sumMax = 0;
-                comp.items.forEach(item => {
-                    sumScore += Number(item.score) || 0;
-                    sumMax += Number(item.max) || 0;
-                });
-                const compPercent = sumMax > 0 ? (sumScore / sumMax) * 100 : 0;
-                const weight = Number(comp.weight) || 0;
-                earnedCompPercent += compPercent * (weight / 100);
-                totalCompWeight += weight;
+            const pWeight = (period.weight !== '' && period.weight !== null && period.weight !== undefined) ? Number(period.weight) || 0 : pAutoWeight;
+            const periodPctOfSubject = totalPeriodWeightSum > 0 ? (pWeight / totalPeriodWeightSum) : 0;
+            
+            let cExplicitSum = 0, cBlankCount = 0;
+            period.components.forEach(c => {
+                if (c.weight !== '' && c.weight !== null && c.weight !== undefined) cExplicitSum += Number(c.weight) || 0;
+                else cBlankCount++;
             });
-            const periodFinalPercent = totalCompWeight > 0 ? (earnedCompPercent / (totalCompWeight / 100)) : 0;
-            const pWeight = Number(period.weight) || 0;
-            earnedPeriodPercent += periodFinalPercent * (pWeight / 100);
-            totalPeriodWeight += pWeight;
+            let cAutoWeight = cBlankCount > 0 ? Math.max(0, 100 - cExplicitSum) / cBlankCount : 0;
+            let totalCompWeightSum = cExplicitSum + (cBlankCount * cAutoWeight);
+
+            period.components.forEach(comp => {
+                const compWeight = (comp.weight !== '' && comp.weight !== null && comp.weight !== undefined) ? Number(comp.weight) || 0 : cAutoWeight;
+                const compPctOfPeriod = totalCompWeightSum > 0 ? (compWeight / totalCompWeightSum) : 0;
+                
+                let iExplicitSum = 0, iBlankCount = 0;
+                comp.items.forEach(item => {
+                    if (item.weight !== '' && item.weight !== null && item.weight !== undefined) iExplicitSum += Number(item.weight) || 0;
+                    else iBlankCount++;
+                });
+
+                let iAutoWeight = iBlankCount > 0 ? Math.max(0, 100 - iExplicitSum) / iBlankCount : 0;
+                let totalItemWeightSum = iExplicitSum + (iBlankCount * iAutoWeight);
+
+                comp.items.forEach((item, index) => {
+                    let itemW = (item.weight !== '' && item.weight !== null && item.weight !== undefined) ? Number(item.weight) || 0 : iAutoWeight;
+                    let max = Number(item.max) || 0;
+                    let isEmpty = (item.score === '' || item.score === null || item.score === undefined);
+                    let score = !isEmpty ? Number(item.score) || 0 : 0;
+
+                    let itemPctOfComp = totalItemWeightSum > 0 ? (itemW / totalItemWeightSum) : 0;
+                    let itemAbsWeight = itemPctOfComp * compPctOfPeriod * periodPctOfSubject * 100;
+
+                    if (!isEmpty) hasAnyInput = true;
+
+                    if (isEmpty) {
+                        if (itemAbsWeight > 0) {
+                            emptyTargets.push({
+                                id: item.id,
+                                name: comp.items.length > 1 ? `${comp.name || 'Component'} (Item ${index + 1})` : (comp.name || 'Unnamed Component'),
+                                periodName: period.name || 'Unnamed Period',
+                                absWeight: itemAbsWeight,
+                                sumMax: max > 0 ? max : 100 
+                            });
+                            absoluteAvailable += itemAbsWeight;
+                        }
+                    } else {
+                        if (max > 0) {
+                            let pct = (score / max);
+                            absoluteEarned += (pct * itemAbsWeight);
+                        }
+                    }
+                });
+            });
         });
 
-        const subjectPercent = totalPeriodWeight > 0 ? (earnedPeriodPercent / (totalPeriodWeight / 100)) : 0;
+        const subjectPercent = totalPeriodWeightSum > 0 ? absoluteEarned : 0;
         const gradeEq = Calculator.interpolateGrade(subjectPercent, Number(subject.passingPercent) || 60, system);
-        return { percent: subjectPercent, equivalent: gradeEq, hasData: totalPeriodWeight > 0 };
+        
+        return { 
+            percent: subjectPercent, 
+            equivalent: gradeEq, 
+            hasData: hasAnyInput, 
+            absoluteEarned: absoluteEarned, 
+            absoluteWeight: 100,
+            emptyComponents: emptyTargets,
+            absoluteAvailable: absoluteAvailable
+        };
     },
+
     calculatePeriod: (period, passingPercent) => {
-        let totalCompWeight = 0;
+        let cExplicitSum = 0, cBlankCount = 0;
+        period.components.forEach(c => {
+            if (c.weight !== '' && c.weight !== null && c.weight !== undefined) cExplicitSum += Number(c.weight) || 0;
+            else cBlankCount++;
+        });
+        let cAutoWeight = cBlankCount > 0 ? Math.max(0, 100 - cExplicitSum) / cBlankCount : 0;
+        let totalCompWeightSum = cExplicitSum + (cBlankCount * cAutoWeight);
+        
         let earnedCompPercent = 0;
 
         const comps = period.components.map(comp => {
-            let sumScore = 0, sumMax = 0;
-            comp.items.forEach(it => { sumScore += Number(it.score) || 0; sumMax += Number(it.max) || 0; });
-            const pct = sumMax > 0 ? (sumScore / sumMax) * 100 : 0;
-            const w = Number(comp.weight) || 0;
-            const contrib = pct * (w / 100); 
-            const hasData = sumMax > 0;
-            earnedCompPercent += contrib;
-            totalCompWeight += w;
-            return { id: comp.id, name: comp.name, weight: w, percent: pct, contrib, hasData };
+            const compWeight = (comp.weight !== '' && comp.weight !== null && comp.weight !== undefined) ? Number(comp.weight) || 0 : cAutoWeight;
+            
+            let compHasInput = false;
+            let iExplicitSum = 0, iBlankCount = 0;
+
+            comp.items.forEach(it => { 
+                if (it.score !== '' && it.score !== null && it.score !== undefined) compHasInput = true;
+                if (it.weight !== '' && it.weight !== null && it.weight !== undefined) iExplicitSum += Number(it.weight) || 0;
+                else iBlankCount++;
+            });
+            
+            let iAutoWeight = iBlankCount > 0 ? Math.max(0, 100 - iExplicitSum) / iBlankCount : 0;
+            let totalItemWeightSum = iExplicitSum + (iBlankCount * iAutoWeight);
+            let earnedItemPercent = 0;
+            
+            comp.items.forEach(item => {
+                let itemW = (item.weight !== '' && item.weight !== null && item.weight !== undefined) ? Number(item.weight) || 0 : iAutoWeight;
+                let max = Number(item.max) || 0;
+                let score = (item.score !== '' && item.score !== null && item.score !== undefined) ? Number(item.score) || 0 : 0;
+                
+                if (max > 0) {
+                    let pct = (score / max) * 100;
+                    earnedItemPercent += pct * (itemW / 100);
+                }
+            });
+
+            const pct = totalItemWeightSum > 0 ? (earnedItemPercent / (totalItemWeightSum / 100)) : 0;
+            const contrib = compHasInput ? (pct * (compWeight / 100)) : 0; 
+            
+            if (compHasInput) {
+                earnedCompPercent += contrib;
+            }
+            
+            return { id: comp.id, name: comp.name, weight: compWeight, percent: pct, contrib, hasData: compHasInput };
         });
 
-        const periodPercent = totalCompWeight > 0 ? (earnedCompPercent / (totalCompWeight / 100)) : 0;
+        const periodPercent = totalCompWeightSum > 0 ? (earnedCompPercent / (totalCompWeightSum / 100)) : 0;
         const passing = Number(passingPercent) || 60;
         const gap = passing - periodPercent;
 
         return {
-            comps, percent: periodPercent, totalWeight: totalCompWeight, hasData: comps.some(c => c.hasData), passing, gap
+            comps, percent: periodPercent, totalWeight: totalCompWeightSum, hasData: comps.some(c => c.hasData), passing, gap
         };
     }
 };
@@ -293,14 +422,7 @@ function showAutosave() {
 function gwaRatio(gwa, system) {
     if (!gwa || gwa <= 0) return 0;
     if (system === 'PERCENT') return Math.max(0, Math.min(100, gwa)) / 100;
-    
-    // --- NEW 4.0 LOGIC ---
-    if (system === '4_IS_BEST') {
-        const clamped = Math.max(0, Math.min(4, gwa));
-        return clamped / 4; // 4.0 fills the ring completely
-    }
-    // ---------------------
-
+    if (system === '4_IS_BEST') { const clamped = Math.max(0, Math.min(4, gwa)); return clamped / 4; }
     const clamped = Math.max(1, Math.min(5, gwa));
     if (system === '1_IS_BEST') return (5 - clamped) / 4; 
     return (clamped - 1) / 4; 
@@ -315,32 +437,24 @@ function pctTier(pct) {
 
 function gwaTier(gwa, system) {
     if (!gwa) return 'muted';
-
     if (system === 'PERCENT') {
         if (gwa >= 90) return 'excellent';
         if (gwa >= 75) return 'good';
-        if (gwa >= 60) return 'ok';
-        return 'warn';
+        if (gwa >= 60) return 'ok'; return 'warn';
     }
-
-    // Thresholds proportionately mapped to 90%, 75%, and 60% underlying scores
     if (system === '4_IS_BEST') {
-        if (gwa >= 3.25) return 'excellent'; // equates to 90%
-        if (gwa >= 2.125) return 'good';     // equates to 75% ("On Track")
-        if (gwa >= 1.0) return 'ok';         // equates to 60% ("Passing")
-        return 'warn';
+        if (gwa >= 3.25) return 'excellent'; 
+        if (gwa >= 2.125) return 'good';     
+        if (gwa >= 1.0) return 'ok'; return 'warn';
     }
-
     if (system === '1_IS_BEST') {
-        if (gwa <= 1.5) return 'excellent';  // equates to 90%
-        if (gwa <= 2.25) return 'good';      // equates to 75%
-        if (gwa <= 3.0) return 'ok';         // equates to 60%
-        return 'warn';
-    } else { // 5.0 IS BEST
-        if (gwa >= 4.5) return 'excellent';  // equates to 90%
-        if (gwa >= 3.75) return 'good';      // equates to 75%
-        if (gwa >= 3.0) return 'ok';         // equates to 60%
-        return 'warn';
+        if (gwa <= 1.5) return 'excellent';  
+        if (gwa <= 2.25) return 'good';      
+        if (gwa <= 3.0) return 'ok'; return 'warn';
+    } else { 
+        if (gwa >= 4.5) return 'excellent';  
+        if (gwa >= 3.75) return 'good';      
+        if (gwa >= 3.0) return 'ok'; return 'warn';
     }
 }
 
@@ -354,11 +468,8 @@ function donutCard(label, val, system) {
     const ratio = gwaRatio(val, system);
     const R = 45, C = 2 * Math.PI * R;
     const offset = C * (1 - ratio);
-
     let displayVal = dash;
-    if (val > 0) {
-        displayVal = system === 'PERCENT' ? val.toFixed(1) + '%' : val.toFixed(3);
-    }
+    if (val > 0) displayVal = system === 'PERCENT' ? val.toFixed(1) + '%' : val.toFixed(3);
 
     return `
         <div class="gwa-card">
@@ -436,6 +547,14 @@ function renderTabs() {
     }
 }
 
+const getWeightWarning = (explicitSum, blankCount, arrValues, label) => {
+    let msgs = [];
+    if (blankCount === 0 && Math.abs(explicitSum - 100) > 0.1) msgs.push(`Weights total ${explicitSum}% (should be 100%)`);
+    if (explicitSum > 100) msgs.push(`Weights exceed 100%`);
+    if (arrValues.some(w => w !== '' && w !== null && w !== undefined && Number(w) === 0)) msgs.push(`A weight is 0%`);
+    return msgs.length ? `<span style="color: var(--danger); font-size: 11px; margin-left: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">⚠️ ${msgs.join(' | ')}</span>` : '';
+};
+
 function renderLedger() {
     const container = document.getElementById('ledger-content');
     const year = appData.years.find(y => y.id === state.currentYearId);
@@ -457,16 +576,10 @@ function renderLedger() {
         <div class="sem-chart">
             <h3>Subject Performance &mdash; ${sem.name}</h3>
             ${hasAny ? chartRows.map(r => {
-                if (!r.res.hasData) {
-                    return `<div class="row"><div class="name">${r.name}</div><div class="bar"></div><div class="val">-</div></div>`;
-                }
+                if (!r.res.hasData) return `<div class="row"><div class="name">${r.name}</div><div class="bar"></div><div class="val">-</div></div>`;
                 const tier = pctTier(r.res.percent);
                 const w = Math.max(2, Math.min(100, r.res.percent));
-                return `<div class="row">
-                    <div class="name">${r.name}</div>
-                    <div class="bar"><div class="fill tier-${tier}" style="width:${w.toFixed(1)}%"></div></div>
-                    <div class="val">${r.res.percent.toFixed(1)}%</div>
-                </div>`;
+                return `<div class="row"><div class="name">${r.name}</div><div class="bar"><div class="fill tier-${tier}" style="width:${w.toFixed(1)}%"></div></div><div class="val">${r.res.percent.toFixed(1)}%</div></div>`;
             }).join('') : `<div class="empty">Add scores to see comparisons.</div>`}
         </div>`;
 
@@ -475,14 +588,12 @@ function renderLedger() {
         const tier = res.hasData ? pctTier(res.percent) : 'muted';
         const passPct = Number(sub.passingPercent) || 60;
         const barW = res.hasData ? Math.max(0, Math.min(100, res.percent)) : 0;
-        
-        const eqText = system === 'PERCENT' 
-            ? (res.hasData ? res.equivalent.toFixed(1) + '%' : 'no data') 
-            : (res.hasData ? 'GE ' + res.equivalent.toFixed(2) : 'no data');
-            
-        const stampText = system === 'PERCENT' 
-            ? `${res.percent.toFixed(1)}%`
-            : `${res.percent.toFixed(1)}% &rarr; ${res.equivalent.toFixed(2)}`;
+        const eqText = system === 'PERCENT' ? (res.hasData ? res.equivalent.toFixed(1) + '%' : 'no data') : (res.hasData ? 'GE ' + res.equivalent.toFixed(2) : 'no data');
+        const stampText = system === 'PERCENT' ? `${res.percent.toFixed(1)}%` : `${res.percent.toFixed(1)}% &rarr; ${res.equivalent.toFixed(2)}`;
+
+        let pExplicit = 0, pBlank = 0;
+        sub.periods.forEach(p => { if (p.weight !== '' && p.weight !== null && p.weight !== undefined) pExplicit += Number(p.weight) || 0; else pBlank++; });
+        let pWarning = getWeightWarning(pExplicit, pBlank, sub.periods.map(p => p.weight), 'Period');
 
         html += `
         <div class="subject-block">
@@ -503,13 +614,19 @@ function renderLedger() {
                 <span>Units <input type="number" class="field w-xs" data-path="subUnits:${year.id}:${sem.id}:${sub.id}" value="${sub.units}"></span>
                 <span class="divider">&middot;</span>
                 <span>Pass % <input type="number" class="field w-xs" data-path="subPass:${year.id}:${sem.id}:${sub.id}" value="${sub.passingPercent}"></span>
+                ${pWarning}
             </div>
 ${sub.periods.map(per => {
                 const pd = Calculator.calculatePeriod(per, sub.passingPercent);
                 const perTier = pd.hasData ? pctTier(pd.percent) : 'muted';
                 const gradeChip = pd.hasData ? `<span class="period-chip tier-${perTier}">${pd.percent.toFixed(2)}</span>` : '';
 
-                // 1. Separate the breakdown list...
+                let pAutoW = pBlank > 0 ? (Math.max(0, 100 - pExplicit) / pBlank) : 0;
+
+                let cExplicit = 0, cBlank = 0;
+                per.components.forEach(c => { if (c.weight !== '' && c.weight !== null && c.weight !== undefined) cExplicit += Number(c.weight) || 0; else cBlank++; });
+                let cWarning = getWeightWarning(cExplicit, cBlank, per.components.map(c => c.weight), 'Component');
+
                 const breakdownList = pd.hasData ? `
                     <div class="breakdown-list">
                         ${pd.comps.map(c => {
@@ -518,7 +635,7 @@ ${sub.periods.map(per => {
                             <div class="bd-row">
                                 <div class="bd-main">
                                     <div class="bd-name">${c.name || 'Untitled'}</div>
-                                    <div class="bd-meta">${c.weight}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
+                                    <div class="bd-meta">${c.weight.toFixed(1)}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
                                     <div class="bd-track"><div class="bd-fill tier-${cTier}" style="width:${Math.max(0,Math.min(100,c.percent)).toFixed(1)}%"></div></div>
                                 </div>
                                 <div class="bd-val tier-${cTier}">${c.hasData ? c.percent.toFixed(1) : '-'}</div>
@@ -526,10 +643,9 @@ ${sub.periods.map(per => {
                         }).join('')}
                     </div>` : `<div class="breakdown-empty">Add scores to see the period breakdown.</div>`;
 
-                // 2. ...from the Period Grade Card
                 const periodGradeCard = pd.hasData ? `
                     <div class="period-grade tier-${perTier}" style="margin-top: 24px;">
-                        <div class="pg-label">Period Grade${per.weight ? ` (${per.weight}% of subject)` : ''}</div>
+                        <div class="pg-label">Period Grade${per.weight !== '' && per.weight !== undefined ? ` (${per.weight}% of subject)` : ` (${pAutoW.toFixed(1)}% auto)`}</div>
                         <div class="pg-value">${pd.percent.toFixed(2)}</div>
                         <div class="pg-rule"></div>
                         <div class="pg-note">
@@ -545,7 +661,8 @@ ${sub.periods.map(per => {
                         <span class="period-tag">${(per.name || 'Period').toUpperCase()}</span>
                         <h3><input type="text" class="field field--period" data-path="perName:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.name}"></h3>
                         <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
-                        <span class="inline-setting">Weight <input type="number" class="field field--weight w-xs" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight}">%</span>
+                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight !== undefined ? per.weight : ''}" placeholder="${pAutoW.toFixed(1)}%">%</span>
+                        ${cWarning}
                         <div class="period-grade-inline">
                             <span class="pgi-label">Period Grade</span>
                             ${gradeChip || '<span class="period-chip tier-muted">-</span>'}
@@ -553,41 +670,121 @@ ${sub.periods.map(per => {
                     </div>
                     <div class="period-grid">
                         <div class="period-inputs">
-                            ${per.components.map(comp => `
+                            ${per.components.map(comp => {
+                                let cAutoW = cBlank > 0 ? (Math.max(0, 100 - cExplicit) / cBlank) : 0;
+                                
+                                let iExplicit = 0, iBlank = 0;
+                                comp.items.forEach(i => { if (i.weight !== '' && i.weight !== null && i.weight !== undefined) iExplicit += Number(i.weight) || 0; else iBlank++; });
+                                let iWarning = getWeightWarning(iExplicit, iBlank, comp.items.map(i => i.weight), 'Item');
+
+                                return `
                                 <div class="component-block">
                                     <div class="header-row">
                                         <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
                                         <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
-                                        <span class="inline-setting">Weight <input type="number" class="field field--weight w-xs" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight}">%</span>
+                                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight !== undefined ? comp.weight : ''}" placeholder="${cAutoW.toFixed(1)}%">%</span>
+                                        ${iWarning}
                                     </div>
-                                    ${comp.items.map((item) => `
+                                    ${comp.items.map((item) => {
+                                        let iAutoW = iBlank > 0 ? (Math.max(0, 100 - iExplicit) / iBlank) : 0;
+                                        
+                                        return `
                                         <div class="item-row">
-                                            <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}">
+                                            <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}" placeholder="-">
                                             <span class="slash">/</span>
                                             <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
+                                            
+                                            <span style="color: var(--text-muted); margin-left: 8px; font-size: 11px;">Wt:</span>
+                                            <input type="number" step="1" class="field" style="width: 80px;" data-path="itemWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.weight !== undefined ? item.weight : ''}" placeholder="${iAutoW.toFixed(1)}%">
+                                            
                                             <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
                                         </div>
-                                    `).join('')}
+                                    `}).join('')}
                                     <button class="btn-add" data-action="add-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}">+ Item</button>
                                 </div>
-                            `).join('')}
+                            `}).join('')}
                             <button class="btn-add" data-action="add-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}">+ Component</button>
-                            
-                            <!-- 3. Inject the Period Grade Card here to fill the left gap -->
                             ${periodGradeCard} 
-                            
                         </div>
                         <aside class="period-summary">
                             <div class="breakdown-title">Period Breakdown</div>
-                            
-                            <!-- 4. Only render the list on the right -->
                             ${breakdownList}
-                            
                         </aside>
                     </div>
                 </div>`;
             }).join('')}
             <button class="btn-add" data-action="add-period" data-path="${year.id}:${sem.id}:${sub.id}">+ Period</button>
+
+            ${(() => {
+                const isGpaSystem = system !== 'PERCENT';
+                const targetMode = sub.targetMode || 'PERCENT';
+                let targetValue = sub.targetValue;
+                if (targetValue === undefined) targetValue = isGpaSystem && targetMode === 'GPA' ? 1.0 : (Number(sub.passingPercent) || 60);
+
+                let targetPercent = targetMode === 'GPA' && isGpaSystem 
+                    ? Calculator.percentFromGpa(Number(targetValue), Number(sub.passingPercent) || 60, system)
+                    : Number(targetValue);
+
+                const needed = targetPercent - res.absoluteEarned;
+                const remainingWeight = res.absoluteAvailable;
+                
+                let targetMsg = '';
+                let distributionHtml = '';
+
+                const buildDistributionHtml = (emptyComps, reqPct, goalText) => {
+                    if (emptyComps.length === 0) return '';
+                    return `
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider); width: 100%;">
+                        <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px;">Required component scores ${goalText}:</div>
+                        <div style="display: grid; gap: 8px; font-size: 13px;">
+                            ${emptyComps.map(c => {
+                                const scoreNeeded = reqPct * c.sumMax;
+                                return `
+                                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); padding: 8px 12px; border-radius: 6px; border: 1px dashed var(--border-strong);">
+                                    <span style="font-weight: 500;">${c.periodName} &mdash; ${c.name}</span>
+                                    <span style="font-family: var(--font-data); font-weight: 600; color: var(--primary);">
+                                        ${scoreNeeded.toFixed(1)} <span style="color: var(--text-subtle); font-size: 12px; font-weight: 400;">/ ${c.sumMax}</span> 
+                                        <span style="margin-left: 8px; font-size: 11px; background: var(--primary-soft); color: var(--primary); padding: 2px 6px; border-radius: 4px;">${(reqPct * 100).toFixed(1)}%</span>
+                                    </span>
+                                </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
+                };
+
+                if (needed <= 0) targetMsg = `<span class="ok-ico">✓</span> You have reached your desired grade!`;
+                else if (remainingWeight <= 0 && needed > 0) targetMsg = `<span class="warn-ico">⚠</span> All components are filled. Your target grade cannot be reached.`;
+                else if (needed > remainingWeight) {
+                    const passNeeded = (Number(sub.passingPercent) || 60) - res.absoluteEarned;
+                    if (passNeeded <= 0) targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you have already passed this subject!`;
+                    else if (passNeeded > remainingWeight) targetMsg = `<span class="warn-ico" style="color: var(--danger);">⚠</span> Desired grade is impossible, and unfortunately, you cannot pass this subject anymore.`;
+                    else {
+                        targetMsg = `<span class="warn-ico">⚠</span> Desired grade is impossible, but you can still pass this subject!`;
+                        distributionHtml = buildDistributionHtml(res.emptyComponents, passNeeded / remainingWeight, 'to pass the subject');
+                    }
+                } else {
+                    targetMsg = `You need <strong>${needed.toFixed(1)}</strong> more points (out of the remaining ${remainingWeight.toFixed(1)}% weight) to reach ${targetPercent.toFixed(1)}%.`;
+                    distributionHtml = buildDistributionHtml(res.emptyComponents, needed / remainingWeight, 'for your desired grade');
+                }
+
+                return `
+                <div class="target-calculator" style="display: block;">
+                    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                        <div class="tc-header">Subject Target Tracker</div>
+                        <div class="tc-body" style="margin-left: 10px; gap: 8px;">
+                            ${isGpaSystem ? `
+                                <select class="field" data-path="subTargetMode:${year.id}:${sem.id}:${sub.id}" style="width: auto;">
+                                    <option value="PERCENT" ${targetMode === 'PERCENT' ? 'selected' : ''}>Target %</option>
+                                    <option value="GPA" ${targetMode === 'GPA' ? 'selected' : ''}>Target GPA</option>
+                                </select>
+                            ` : ''}
+                            <label>Goal: <input type="number" class="field w-xs" data-path="subTargetVal:${year.id}:${sem.id}:${sub.id}" value="${targetValue}" step="${targetMode === 'GPA' ? '0.01' : '1'}"></label>
+                            <div class="tc-result">${targetMsg}</div>
+                        </div>
+                    </div>
+                    ${distributionHtml}
+                </div>`;
+            })()}
         </div>`;
     });
 
@@ -603,7 +800,6 @@ function updateUI() {
     Storage.setRecord(appData);
 }
 
-// Global Grade System Listener
 document.getElementById('global-grade-system').addEventListener('change', (e) => {
     if (!appData.settings) appData.settings = {};
     appData.settings.gradingSystem = e.target.value;
@@ -627,7 +823,6 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', async (e) => {
     const action = e.target.dataset.action;
     if (!action) return;
-
     const path = e.target.dataset.path?.split(':');
     if (action.startsWith('add-')) {
         const y = path ? appData.years.find(y => y.id === path[0]) : null;
@@ -649,11 +844,11 @@ document.addEventListener('click', async (e) => {
         } else if (action === 'add-sub') {
             s.subjects.push({ id: generateId(), name: 'New Subject', units: 3, passingPercent: 60, periods: [] });
         } else if (action === 'add-period') {
-            sub.periods.push({ id: generateId(), name: 'New Period', weight: 0, components: [] });
+            sub.periods.push({ id: generateId(), name: 'New Period', weight: '', components: [] });
         } else if (action === 'add-comp') {
-            p.components.push({ id: generateId(), name: 'New Comp', weight: 0, items: [] });
+            p.components.push({ id: generateId(), name: 'New Comp', weight: '', items: [] });
         } else if (action === 'add-item') {
-            c.items.push({ id: generateId(), score: 0, max: 100 });
+            c.items.push({ id: generateId(), score: '', max: 100, weight: '' });
         }
         updateUI();
     }
@@ -710,12 +905,17 @@ document.addEventListener('change', (e) => {
     if (field === 'subName') sub.name = val;
     if (field === 'subUnits') sub.units = val;
     if (field === 'subPass') sub.passingPercent = val;
+    
+    if (field === 'subTargetMode') sub.targetMode = val;
+    if (field === 'subTargetVal') sub.targetValue = val;
+    
     if (field === 'perName') p.name = val;
     if (field === 'perWeight') p.weight = val;
     if (field === 'compName') c.name = val;
     if (field === 'compWeight') c.weight = val;
     if (field === 'score') item.score = val;
     if (field === 'max') item.max = val;
+    if (field === 'itemWeight') item.weight = val;
 
     updateUI();
 });
@@ -723,6 +923,28 @@ document.addEventListener('change', (e) => {
 document.addEventListener('input', (e) => {
     if (e.target.type === 'text') {
         e.target.size = Math.max(e.target.value.length, 4);
+    }
+});
+
+document.addEventListener('focusin', (e) => {
+    const path = e.target.dataset.path;
+    if (path && (path.startsWith('itemWeight') || path.startsWith('compWeight') || path.startsWith('perWeight'))) {
+        if (e.target.value === '') {
+            const autoVal = e.target.placeholder.replace('%', '');
+            e.target.value = autoVal;
+            e.target.select(); 
+        }
+    }
+});
+
+document.addEventListener('focusout', (e) => {
+    const path = e.target.dataset.path;
+    if (path && (path.startsWith('itemWeight') || path.startsWith('compWeight') || path.startsWith('perWeight'))) {
+        const autoVal = e.target.placeholder.replace('%', '');
+        if (e.target.value !== '' && Number(e.target.value).toFixed(1) === Number(autoVal).toFixed(1)) {
+            e.target.value = '';
+            e.target.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     }
 });
 
