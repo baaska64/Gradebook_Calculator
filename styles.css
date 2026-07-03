@@ -387,7 +387,7 @@ a:hover { color: var(--primary-hover); }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 90%;
+    max-width: 80%;
 }
 
 .sub-card-meta {
@@ -475,6 +475,7 @@ a:hover { color: var(--primary-hover); }
     border-radius: 4px;
     font-family: var(--font-ui);
     user-select: none;
+    flex-shrink: 0;
 }
 input.hierarchy-badge {
     cursor: text;
@@ -592,15 +593,14 @@ input.badge-item {
     font-family: var(--font-data);
     font-size: 12px;
     color: var(--text-muted);
-    padding-bottom: 12px;
-    margin-bottom: 14px;
-    margin-top: 10px;
-    border-bottom: 1px solid var(--divider);
+    padding-top: 12px;
+    margin-top: 12px;
+    border-top: 1px solid var(--divider);
 }
 .subject-meta .divider { color: var(--border-strong); margin: 0 4px; }
 
 .period-block {
-    margin-top: 18px;
+    margin-bottom: 18px;
     padding: 14px 16px;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -649,13 +649,52 @@ input.badge-item {
 .item-row:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
 .item-row .slash { color: var(--text-subtle); font-family: var(--font-data); font-size: 13px; }
 
+/* Structural Fixes for wrapping */
+.header-row { 
+    display: flex; 
+    align-items: center; 
+    gap: 10px; 
+    flex-wrap: wrap; /* Safety wrap */
+}
+.header-row h2, .header-row h3, .header-row h4 {
+    flex: 1 1 auto;
+    min-width: 120px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0; /* Prevents action buttons from squishing */
+}
+
 .inline-setting {
     font-family: var(--font-data);
     font-size: 12px;
     color: var(--text-muted);
-    margin-left: 12px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    gap: 4px;
+    flex-shrink: 0; /* Ensures the percentage sign and input don't overlap */
 }
-.header-row { display: flex; align-items: center; gap: 10px; }
+
+.item-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.weight-warning {
+    color: var(--danger);
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1.2;
+    margin-left: auto; /* Pushes to right when inline */
+}
 
 /* ---------- Stamps (grade badges) ---------- */
 .stamp {
@@ -727,6 +766,24 @@ button:hover {
 }
 .btn-delete:hover { color: var(--danger); background: var(--danger-soft); }
 .btn-delete--tiny { width: 20px; height: 20px; font-size: 12px; margin-left: 2px; }
+
+.btn-duplicate {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-subtle);
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: none;
+    cursor: pointer;
+    font-size: 16px;
+}
+.btn-duplicate:hover { color: var(--primary); background: var(--primary-soft); }
+.btn-duplicate--tiny { width: 20px; height: 20px; font-size: 14px; margin-left: 2px; }
 
 .btn-toggle-sub {
     background: transparent;
@@ -907,11 +964,10 @@ button:hover {
 /* ==========================================================
    Period breakdown + Summary Card
    ========================================================== */
-.period-header { align-items: center; gap: 10px; flex-wrap: wrap; }
 .period-grade-inline { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); }
 .pgi-label { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; font-size: 0.66rem; }
 
-.period-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 20px; align-items: start; margin-top: 12px; }
+.period-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; margin-top: 12px; }
 .period-inputs { min-width: 0; }
 
 /* Breakdown panel */
@@ -965,8 +1021,9 @@ button:hover {
 [data-theme="dark"] .period-grade.tier-warn .pg-value      { color: #f87171; }
 
 /* Responsive adjustments */
-@media (max-width: 900px) {
+@media (max-width: 1050px) {
     .period-grid { grid-template-columns: 1fr; }
+    .period-summary { position: static; }
 }
 @media (max-width: 720px) {
     body { padding: 16px 12px 60px; }
@@ -981,15 +1038,21 @@ button:hover {
     .tab { padding: 6px 10px; font-size: 12px; }
     .ledger-paper { padding: 20px 16px 28px; }
     .subject-block { padding: 16px 14px; }
-    .header-row { flex-wrap: wrap; max-width: 100%; position: relative; padding-right: 34px; }
-    .ledger-paper h2, .ledger-paper h3, .ledger-paper h4 { flex: 1 1 100%; min-width: 100%; }
-    .field--subject { width: 100%; font-size: 1.1rem; }
-    .header-row .btn-delete { position: absolute; right: 0; top: 2px; }
-    .header-row .stamp { margin-left: 0; margin-top: 8px; position: relative; }
+    
+    .header-row { padding-right: 0; gap: 8px; }
+    .ledger-paper h2, .ledger-paper h3, .ledger-paper h4 { min-width: 100px; }
+    .header-row .btn-delete, .header-row .btn-duplicate { position: static; }
+    
+    .weight-warning { flex: 1 1 100%; margin-left: 0; margin-top: 4px; }
+    .period-grade-inline { flex: 1 1 100%; margin-left: 0; margin-top: 4px; }
+    
     .subject-meta { padding-top: 4px; row-gap: 6px; }
-    .component-block { margin-left: 0; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+    .component-block { padding: 12px; }
     .items-container { margin-left: 0; padding-left: 8px; }
-    .item-row { width: 100%; justify-content: space-between; height: auto; padding: 6px 10px; }
+    
+    .item-row { flex-wrap: wrap; height: auto; padding: 8px 10px; justify-content: flex-start; }
+    .item-row .badge-item { flex: 1 1 100%; margin-bottom: 8px; text-align: left; }
+    .item-inputs { display: flex; align-items: center; gap: 4px; }
 }
 
 /* ==========================================================

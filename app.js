@@ -557,7 +557,7 @@ const getWeightWarning = (explicitSum, blankCount, arrValues, label) => {
     if (blankCount === 0 && Math.abs(explicitSum - 100) > 0.1) msgs.push(`Weights total ${explicitSum}% (should be 100%)`);
     if (explicitSum > 100) msgs.push(`Weights exceed 100%`);
     if (arrValues.some(w => w !== '' && w !== null && w !== undefined && Number(w) === 0)) msgs.push(`A weight is 0%`);
-    return msgs.length ? `<span style="color: var(--danger); font-size: 11px; margin-left: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">⚠️ ${msgs.join(' | ')}</span>` : '';
+    return msgs.length ? `<div class="weight-warning">⚠️ ${msgs.join(' | ')}</div>` : '';
 };
 
 function renderLedger() {
@@ -587,7 +587,10 @@ function renderLedger() {
             <div class="sub-card" data-id="${sub.id}">
                 <div class="sub-card-header">
                     <h3 class="sub-card-title">${sub.name || 'Untitled Subject'}</h3>
-                    <button class="btn-delete btn-delete--tiny" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}">&times;</button>
+                    <div class="header-actions">
+                        <button class="btn-duplicate btn-duplicate--tiny" data-action="duplicate-sub" data-path="${year.id}:${sem.id}:${sub.id}" title="Duplicate subject">⧉</button>
+                        <button class="btn-delete btn-delete--tiny" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" title="Delete subject">&times;</button>
+                    </div>
                 </div>
                 <div class="sub-card-meta">
                     ${sub.periods.length} periods &middot; Passing ${sub.passingPercent}%
@@ -641,7 +644,10 @@ function renderLedger() {
         <div class="header-row">
             <span class="hierarchy-badge badge-subject">SUBJECT</span>
             <h2><input type="text" class="field field--subject" data-path="subName:${year.id}:${sem.id}:${sub.id}" value="${sub.name}" placeholder="Subject Name"></h2>
-            <button class="btn-delete" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Delete subject" title="Delete subject">&times;</button>
+            <div class="header-actions">
+                <button class="btn-duplicate" data-action="duplicate-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Duplicate subject" title="Duplicate subject">⧉</button>
+                <button class="btn-delete" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Delete subject" title="Delete subject">&times;</button>
+            </div>
             ${res.hasData ? `<div class="stamp">${stampText}</div>` : ''}
         </div>
         
@@ -655,9 +661,9 @@ function renderLedger() {
         </div>
         
         <div class="subject-meta">
-            <span>Units <input type="number" class="field w-xs" data-path="subUnits:${year.id}:${sem.id}:${sub.id}" value="${sub.units}"></span>
+            <div class="inline-setting">Units <input type="number" class="field w-xs" data-path="subUnits:${year.id}:${sem.id}:${sub.id}" value="${sub.units}"></div>
             <span class="divider">&middot;</span>
-            <span>Pass % <input type="number" class="field w-xs" data-path="subPass:${year.id}:${sem.id}:${sub.id}" value="${sub.passingPercent}"></span>
+            <div class="inline-setting">Pass % <input type="number" class="field w-xs" data-path="subPass:${year.id}:${sem.id}:${sub.id}" value="${sub.passingPercent}"></div>
             ${pWarning}
         </div>
 
@@ -709,8 +715,11 @@ ${sub.periods.map(per => {
                         </button>
                         <span class="hierarchy-badge badge-period">PERIOD</span>
                         <h3><input type="text" class="field field--period" data-path="perName:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.name}"></h3>
-                        <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
-                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight !== undefined ? per.weight : ''}" placeholder="${pAutoW.toFixed(1)}%">%</span>
+                        <div class="header-actions">
+                            <button class="btn-duplicate btn-duplicate--tiny" data-action="duplicate-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Duplicate period" title="Duplicate period">⧉</button>
+                            <button class="btn-delete btn-delete--tiny" data-action="delete-period" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}" aria-label="Delete period">&times;</button>
+                        </div>
+                        <div class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 70px;" data-path="perWeight:${year.id}:${sem.id}:${sub.id}:${per.id}" value="${per.weight !== undefined ? per.weight : ''}" placeholder="${pAutoW.toFixed(1)}%">%</div>
                         ${cWarning}
                         <div class="period-grade-inline">
                             <span class="pgi-label">Period Grade</span>
@@ -735,10 +744,12 @@ ${sub.periods.map(per => {
                                         </button>
                                         <span class="hierarchy-badge badge-comp">COMPONENT</span>
                                         <h4><input type="text" class="field field--component" data-path="compName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.name}"></h4>
-                                        <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
-                                        <span class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 76px;" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight !== undefined ? comp.weight : ''}" placeholder="${cAutoW.toFixed(1)}%">%</span>
+                                        <div class="header-actions">
+                                            <button class="btn-delete btn-delete--tiny" data-action="delete-comp" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" aria-label="Delete component">&times;</button>
+                                        </div>
+                                        <div class="inline-setting">Weight <input type="number" step="1" class="field field--weight" style="width: 70px;" data-path="compWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}" value="${comp.weight !== undefined ? comp.weight : ''}" placeholder="${cAutoW.toFixed(1)}%">%</div>
                                         ${iWarning}
-                                        ${comp.isCollapsed ? `<span class="inline-setting" style="margin-left: auto;">${comp.items.length} item(s)</span>` : ''}
+                                        ${comp.isCollapsed ? `<div class="inline-setting" style="margin-left: auto;">${comp.items.length} item(s)</div>` : ''}
                                     </div>
                                     <div class="comp-content-wrapper" style="display: ${comp.isCollapsed ? 'none' : 'block'};">
                                         <div class="items-container">
@@ -748,14 +759,18 @@ ${sub.periods.map(per => {
                                                 return `
                                                 <div class="item-row">
                                                     <input type="text" class="field hierarchy-badge badge-item" data-path="itemName:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.name || ''}" placeholder="Item ${idx + 1}" size="${Math.max((item.name || `Item ${idx + 1}`).length, 4)}">
-                                                    <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}" placeholder="-">
-                                                    <span class="slash">/</span>
-                                                    <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
-                                                    
-                                                    <span style="color: var(--text-muted); margin-left: 8px; font-size: 11px;">Wt:</span>
-                                                    <input type="number" step="1" class="field" style="width: 80px;" data-path="itemWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.weight !== undefined ? item.weight : ''}" placeholder="${iAutoW.toFixed(1)}%">
-                                                    
-                                                    <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
+                                                    <div class="item-inputs">
+                                                        <input type="number" class="field w-sm" data-path="score:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.score}" placeholder="-">
+                                                        <span class="slash">/</span>
+                                                        <input type="number" class="field w-sm" data-path="max:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.max}">
+                                                    </div>
+                                                    <div class="inline-setting">
+                                                        <span style="color: var(--text-muted); margin-left: 8px; font-size: 11px;">Wt:</span>
+                                                        <input type="number" step="1" class="field" style="width: 70px;" data-path="itemWeight:${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" value="${item.weight !== undefined ? item.weight : ''}" placeholder="${iAutoW.toFixed(1)}%">%
+                                                    </div>
+                                                    <div class="header-actions">
+                                                        <button class="btn-delete btn-delete--tiny" data-action="delete-item" data-path="${year.id}:${sem.id}:${sub.id}:${per.id}:${comp.id}:${item.id}" aria-label="Delete item">&times;</button>
+                                                    </div>
                                                 </div>
                                             `}).join('')}
                                         </div>
@@ -882,7 +897,7 @@ document.addEventListener('click', (e) => {
     }
 
     const subCard = e.target.closest('.sub-card');
-    if (subCard && !e.target.classList.contains('btn-delete') && !subCard.classList.contains('btn-add-sub-card')) {
+    if (subCard && !e.target.closest('.header-actions') && !subCard.classList.contains('btn-add-sub-card')) {
         state.currentSubId = subCard.dataset.id;
         updateUI();
     }
@@ -919,6 +934,45 @@ document.addEventListener('click', async (e) => {
         const c = p ? p.components.find(c => c.id === path[4]) : null;
         if (c) {
             c.isCollapsed = !c.isCollapsed;
+            updateUI();
+        }
+        return;
+    }
+
+    if (action === 'duplicate-sub') {
+        const s = appData.years.find(y => y.id === path[0]).semesters.find(sem => sem.id === path[1]);
+        const subToCopy = s.subjects.find(sub => sub.id === path[2]);
+        if (subToCopy) {
+            const newSub = JSON.parse(JSON.stringify(subToCopy));
+            newSub.id = generateId();
+            newSub.name = (newSub.name || 'Untitled') + ' (Copy)';
+            newSub.periods.forEach(p => {
+                p.id = generateId();
+                p.components.forEach(c => {
+                    c.id = generateId();
+                    c.items.forEach(i => i.id = generateId());
+                });
+            });
+            const index = s.subjects.findIndex(sub => sub.id === path[2]);
+            s.subjects.splice(index + 1, 0, newSub);
+            updateUI();
+        }
+        return;
+    }
+
+    if (action === 'duplicate-period') {
+        const sub = appData.years.find(y => y.id === path[0]).semesters.find(sem => sem.id === path[1]).subjects.find(s => s.id === path[2]);
+        const perToCopy = sub.periods.find(p => p.id === path[3]);
+        if (perToCopy) {
+            const newPer = JSON.parse(JSON.stringify(perToCopy));
+            newPer.id = generateId();
+            newPer.name = (newPer.name || 'Period') + ' (Copy)';
+            newPer.components.forEach(c => {
+                c.id = generateId();
+                c.items.forEach(i => i.id = generateId());
+            });
+            const index = sub.periods.findIndex(p => p.id === path[3]);
+            sub.periods.splice(index + 1, 0, newPer);
             updateUI();
         }
         return;
@@ -1033,7 +1087,7 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('input', (e) => {
-    if (e.target.type === 'text') {
+    if (e.target.type === 'text' && !e.target.classList.contains('field--sub-card')) {
         e.target.size = Math.max(e.target.value.length, 4);
     }
 });
