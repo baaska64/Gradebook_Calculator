@@ -159,13 +159,13 @@ a:hover { color: var(--primary-hover); }
     justify-content: space-between;
     align-items: center; 
     gap: 20px;
-    flex-wrap: nowrap; /* Forces title and buttons to share the same line on desktop */
+    flex-wrap: nowrap; 
     padding: 22px 28px;
     border-bottom: 1px solid var(--divider);
 }
 
 .dashboard-header > div:first-child {
-    flex: 0 0 auto; /* Prevents the title from stretching and pushing buttons */
+    flex: 0 0 auto; 
     white-space: nowrap; 
 }
 
@@ -189,7 +189,7 @@ a:hover { color: var(--primary-hover); }
     gap: 10px;
     align-items: center;
     justify-content: flex-end;
-    flex-wrap: wrap; /* Allows the buttons to wrap internally if they get squeezed */
+    flex-wrap: wrap; 
     flex: 1 1 auto;
 }
 
@@ -210,7 +210,7 @@ a:hover { color: var(--primary-hover); }
 
 @media (max-width: 950px) {
     .dashboard-header {
-        flex-wrap: wrap; /* Only allows the main header to wrap on smaller screens */
+        flex-wrap: wrap;
         justify-content: center;
         text-align: center;
     }
@@ -346,6 +346,161 @@ a:hover { color: var(--primary-hover); }
     letter-spacing: -0.01em;
 }
 
+/* ---------- Grid View (Subject Cards) ---------- */
+.subject-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+}
+
+.sub-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-xs);
+    position: relative;
+}
+
+.sub-card:hover {
+    border-color: var(--border-strong);
+}
+
+.sub-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.sub-card-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--heading-color);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 90%;
+}
+
+.sub-card-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.sub-card-progress .bar {
+    height: 4px;
+    background: var(--surface-3);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.sub-card-progress .fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--primary), #6366f1);
+}
+
+.sub-card-progress .fill.tier-excellent { background: linear-gradient(90deg, #10b981, #34d399); }
+.sub-card-progress .fill.tier-good { background: linear-gradient(90deg, #4f46e5, #6366f1); }
+.sub-card-progress .fill.tier-ok { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.sub-card-progress .fill.tier-warn { background: linear-gradient(90deg, #dc2626, #ef4444); }
+
+[data-theme="dark"] .sub-card-progress .fill.tier-excellent { background: linear-gradient(90deg, #059669, #34d399); }
+[data-theme="dark"] .sub-card-progress .fill.tier-good { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+[data-theme="dark"] .sub-card-progress .fill.tier-ok { background: linear-gradient(90deg, #0891b2, #22d3ee); }
+[data-theme="dark"] .sub-card-progress .fill.tier-warn { background: linear-gradient(90deg, #dc2626, #f87171); }
+
+.btn-add-sub-card {
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    color: var(--text-muted);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    min-height: 100px;
+    box-shadow: none;
+    transition: all 0.2s ease;
+}
+.btn-add-sub-card:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-soft);
+}
+
+/* ---------- Active Subject View ---------- */
+.active-subject-nav {
+    margin-bottom: 16px;
+}
+.btn-back {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: none;
+}
+.btn-back:hover {
+    background: var(--surface-3);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+/* ---------- Labels and Badges (Hierarchy) ---------- */
+.hierarchy-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    user-select: none;
+}
+input.hierarchy-badge {
+    cursor: text;
+}
+.badge-subject {
+    background: var(--text);
+    color: var(--surface);
+}
+.badge-period {
+    background: var(--primary);
+    color: #ffffff;
+}
+.badge-comp {
+    background: var(--surface-3);
+    color: var(--text-muted);
+}
+input.badge-item {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-subtle);
+    padding: 2px 6px;
+}
+
 /* ---------- Fields ---------- */
 .field {
     background: transparent;
@@ -453,14 +608,32 @@ a:hover { color: var(--primary-hover); }
 }
 
 .component-block {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin-bottom: 14px;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--divider);
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-xs);
 }
-.component-block:last-child { border-bottom: none; padding-bottom: 4px; }
+.component-block:last-child {
+    margin-bottom: 0;
+}
+.component-block .header-row {
+    border-bottom: 1px solid var(--divider);
+    padding-bottom: 12px;
+}
+
+.items-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border-strong);
+    margin-left: 4px;
+}
 
 .item-row {
     display: inline-flex;
@@ -529,8 +702,9 @@ button:hover {
     background: transparent;
     font-size: 12px;
     padding: 6px 12px;
-    margin-top: 10px;
+    margin-top: 2px;
     box-shadow: none;
+    align-self: flex-start;
 }
 .btn-add:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
@@ -687,8 +861,7 @@ button:hover {
 /* Progress Bars & Charts */
 .subject-progress {
     display: flex; align-items: center; gap: 14px;
-    margin: 10px 0 4px; padding: 12px 14px;
-    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+    flex: 1;
 }
 .subject-progress .bar, .sem-chart .bar, .bd-track {
     flex: 1; position: relative; height: 10px; background: var(--surface-3); border-radius: 999px; overflow: hidden;
@@ -735,12 +908,6 @@ button:hover {
    Period breakdown + Summary Card
    ========================================================== */
 .period-header { align-items: center; gap: 10px; flex-wrap: wrap; }
-.period-tag {
-    display: inline-block; padding: 4px 10px; font-size: 0.66rem; font-weight: 700;
-    letter-spacing: 0.1em; border-radius: 999px;
-    color: #ffffff !important;
-    background: var(--primary) !important;
-}
 .period-grade-inline { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 0.75rem; color: var(--text-muted); }
 .pgi-label { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; font-size: 0.66rem; }
 
@@ -820,7 +987,8 @@ button:hover {
     .header-row .btn-delete { position: absolute; right: 0; top: 2px; }
     .header-row .stamp { margin-left: 0; margin-top: 8px; position: relative; }
     .subject-meta { padding-top: 4px; row-gap: 6px; }
-    .component-block { margin-left: 0; flex-direction: column; align-items: flex-start; gap: 8px; }
+    .component-block { margin-left: 0; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+    .items-container { margin-left: 0; padding-left: 8px; }
     .item-row { width: 100%; justify-content: space-between; height: auto; padding: 6px 10px; }
 }
 
