@@ -42,11 +42,12 @@ if (themeBtn) {
 // ------------------------
 
 function updateSyncUI(state) {
-    const el = document.getElementById('sync-status');
-    el.className = 'sync-status ' + state;
-    if (state === 'synced') el.textContent = 'Cloud Synced';
-    if (state === 'offline') el.textContent = 'Offline (Saved Locally)';
-    if (state === 'pending') el.textContent = 'Syncing...';
+    const indicator = document.getElementById('header-sync-indicator');
+    if (!indicator) return;
+    indicator.className = 'sync-indicator ' + state;
+    if (state === 'synced') indicator.title = 'Online & Synced';
+    if (state === 'offline') indicator.title = 'Offline (Saved Locally)';
+    if (state === 'pending') indicator.title = 'Syncing...';
 }
 
 window.addEventListener('online', () => {
@@ -89,15 +90,18 @@ const Storage = {
     },
     setRecord: async (data) => {
         localStorage.setItem(Storage.KEY, JSON.stringify(data));
-        showAutosave();
         if (currentUser) {
             if (isOnline) {
                 updateSyncUI('pending');
+                showAutosave('pending');
                 await Storage.syncToCloud(data);
             } else {
                 hasPendingSync = true;
                 updateSyncUI('offline');
+                showAutosave('offline');
             }
+        } else {
+            showAutosave('saved');
         }
     },
     syncToCloud: async (data = null) => {
@@ -110,9 +114,11 @@ const Storage = {
             if (error) throw error;
             hasPendingSync = false;
             updateSyncUI('synced');
+            showAutosave('synced');
         } catch (err) {
             hasPendingSync = true;
             updateSyncUI('offline');
+            showAutosave('offline');
         }
     },
     clearRecords: async () => {
@@ -571,10 +577,30 @@ const Calculator = {
     }
 };
 
-function showAutosave() {
+function showAutosave(state = 'saved') {
     const el = document.getElementById('autosave-status');
+    if (state === 'synced') {
+        el.textContent = 'Cloud Synced';
+        el.style.background = 'var(--success)';
+        el.style.color = '#fff';
+    } else if (state === 'offline') {
+        el.textContent = 'Saved Locally';
+        el.style.background = 'var(--text-muted)';
+        el.style.color = '#fff';
+    } else if (state === 'pending') {
+        el.textContent = 'Syncing...';
+        el.style.background = 'var(--warning)';
+        el.style.color = '#fff';
+    } else {
+        el.textContent = 'Saved';
+        el.style.background = 'var(--text)';
+        el.style.color = 'var(--surface)';
+    }
     el.classList.add('visible');
-    setTimeout(() => el.classList.remove('visible'), 2000);
+    if (el.hideTimeout) clearTimeout(el.hideTimeout);
+    el.hideTimeout = setTimeout(() => {
+        el.classList.remove('visible');
+    }, 2000);
 }
 
 function gwaRatio(gwa, system) {
@@ -889,7 +915,6 @@ function renderLedger() {
     const passPct = Number(sub.passingPercent) || 60;
     const barW = res.hasData ? Math.max(0, Math.min(100, res.percent)) : 0;
     const eqText = system === 'PERCENT' ? (res.hasData ? res.equivalent.toFixed(1) + '%' : 'no data') : (res.hasData ? 'GE ' + res.equivalent.toFixed(2) : 'no data');
-    const stampText = system === 'PERCENT' ? `${res.percent.toFixed(1)}%` : `${res.percent.toFixed(1)}% &rarr; ${res.equivalent.toFixed(2)}`;
 
     let pExplicit = 0, pBlank = 0;
     sub.periods.forEach(p => { if (p.weight !== '' && p.weight !== null && p.weight !== undefined) pExplicit += Number(p.weight) || 0; else pBlank++; });
@@ -909,7 +934,6 @@ function renderLedger() {
                 <button class="btn-duplicate" data-action="duplicate-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Duplicate subject" title="Duplicate subject">⧉</button>
                 <button class="btn-delete" data-action="delete-sub" data-path="${year.id}:${sem.id}:${sub.id}" aria-label="Delete subject" title="Delete subject">&times;</button>
             </div>
-            ${res.hasData ? `<div class="stamp">${stampText}</div>` : ''}
         </div>
         
         <div class="subject-progress">
