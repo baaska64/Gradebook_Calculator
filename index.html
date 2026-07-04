@@ -81,7 +81,22 @@
 
         <div id="exclusions-modal" class="modal" style="display:none;">
             <div class="modal-content">
-                <h2 id="exc-modal-title">Grade Exclusions</h2>
+                <h2 id="exc-modal-title">Settings</h2>
+                <div id="settings-labels-container" style="margin: 16px 0; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+                    <h3 style="font-size: 12px; margin-bottom: 8px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Custom Category Labels</h3>
+                    <div style="display: flex; gap: 12px;">
+                        <div id="year-label-setting" style="flex: 1;">
+                            <input type="text" id="custom-year-label" class="field field--block" placeholder="YEAR (default)" style="padding: 6px 10px; font-size: 13px;">
+                        </div>
+                        <div id="sem-label-setting" style="flex: 1;">
+                            <input type="text" id="custom-sem-label" class="field field--block" placeholder="SEMESTER (default)" style="padding: 6px 10px; font-size: 13px;">
+                        </div>
+                        <div id="cum-label-setting" style="flex: 1;">
+                            <input type="text" id="custom-cum-label" class="field field--block" placeholder="CUMULATIVE (default)" style="padding: 6px 10px; font-size: 13px;">
+                        </div>
+                    </div>
+                </div>
+                <h3 style="font-size: 12px; margin-bottom: 8px; margin-top: 16px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Grade Exclusions</h3>
                 <p id="exc-modal-desc" style="font-size:13px; color:var(--text-muted); margin-bottom:4px;">Uncheck items you want to temporarily ignore for calculations.</p>
                 <div class="exclusions-tree" id="exclusions-tree-content"></div>
                 <div class="modal-actions" style="justify-content: space-between;">

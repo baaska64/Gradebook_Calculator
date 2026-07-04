@@ -96,7 +96,7 @@ body, .dashboard, .dashboard-header, .gwa-card, .subject-block,
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: var(--bg); }
+html, body { background: var(--bg); overflow-x: hidden; }
 body {
     color: var(--text);
     font-family: var(--font-ui);
@@ -107,6 +107,7 @@ body {
     margin: 0 auto;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -310,11 +311,18 @@ input[type=number] {
 /* ---------- Folder tabs ---------- */
 .folder-tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 16px;
     padding: 12px 28px;
     background: transparent;
     border-bottom: none;
+}
+.tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex: 1;
 }
 .sub-tabs {
     padding: 0 28px 12px;
@@ -347,11 +355,38 @@ input[type=number] {
 .tab:not(.active) .field--tabname { pointer-events: none; }
 .tab.active .field--tabname { cursor: text; border-bottom-color: transparent; }
 
-.sub-tabs .tab { font-size: 12px; padding: 6px 12px; border-radius: var(--radius-sm); top: 0; }
+.tab-group-label {
+    display: inline-flex;
+    justify-content: flex-end;
+    width: 60px;
+    padding-top: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+    user-select: none;
+}
+.sub-tabs .tab-group-label {
+    padding-top: 8px;
+}
+
+.sub-tabs .tab { 
+    font-size: 12px; 
+    padding: 6px 12px; 
+    border-radius: var(--radius-sm); 
+    background: transparent;
+    border: 1px solid var(--border);
+    top: 0; 
+}
+.sub-tabs .tab:hover {
+    background: var(--surface-2);
+}
 .sub-tabs .tab.active {
     background: var(--primary-soft);
     color: var(--primary);
-    border-color: transparent;
+    border-color: var(--primary-soft);
     box-shadow: none;
 }
 .tab.btn-add {
@@ -1265,9 +1300,24 @@ button:hover {
     #global-grade-system { flex: none; width: 100%; margin-right: 0 !important; }
     .gwa-summary { grid-template-columns: 1fr; padding: 16px 18px; gap: 10px; }
     .gwa-card + .gwa-card { border-left: none; border-top: 1px solid var(--border); }
-    .folder-tabs { padding: 12px 14px 0; column-gap: 4px; row-gap: 4px; }
+    .folder-tabs { 
+        padding: 12px 14px 0; 
+        column-gap: 8px; 
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        width: 100%;
+        max-width: 100%;
+    }
+    .tabs-list {
+        flex-wrap: nowrap;
+    }
+    .folder-tabs::-webkit-scrollbar {
+        display: none;
+    }
     .sub-tabs { padding: 10px 14px 0; }
-    .tab { padding: 6px 10px; font-size: 12px; }
+    .tab { padding: 6px 10px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
     .ledger-paper { padding: 20px 16px 28px; }
     .subject-block { padding: 16px 14px; }
     

@@ -655,17 +655,39 @@ function donutCard(label, val, system, indicatorText = null, isClickable = false
 function getExcludedIdsForNodes(nodes, globalSet) {
     let ids = [];
     if (!globalSet || globalSet.size === 0 || !nodes) return ids;
+
+    const isFullyExcluded = (node) => {
+        if (!node) return true;
+        if (!globalSet.has(node.id)) return false;
+        
+        const lists = [node.semesters, node.subjects, node.periods, node.components, node.items, node.subItems];
+        for (let list of lists) {
+            if (list) {
+                for (let child of list) {
+                    if (!isFullyExcluded(child)) return false;
+                }
+            }
+        }
+        return true;
+    };
+
     const search = (nodesList) => {
+        if (!nodesList) return;
         for (let node of nodesList) {
-            if (node && globalSet.has(node.id)) ids.push(node.id);
-            if (node && node.semesters) search(node.semesters);
-            if (node && node.subjects) search(node.subjects);
-            if (node && node.periods) search(node.periods);
-            if (node && node.components) search(node.components);
-            if (node && node.items) search(node.items);
-            if (node && node.subItems) search(node.subItems);
+            if (!node) continue;
+            if (isFullyExcluded(node)) {
+                ids.push(node.id);
+            } else {
+                search(node.semesters);
+                search(node.subjects);
+                search(node.periods);
+                search(node.components);
+                search(node.items);
+                search(node.subItems);
+            }
         }
     };
+    
     search(nodes);
     return ids;
 }
@@ -742,31 +764,38 @@ function renderDashboard() {
     const yearInd = getExclusionsIndicatorText(yearIds, [currentYear]);
     const cumInd = getExclusionsIndicatorText(cumIds, appData.years);
 
+    const yLabel = appData.settings?.yearLabel || 'YEAR';
+    const sLabel = appData.settings?.semLabel || 'SEMESTER';
+    const cLabel = appData.settings?.cumLabel || 'CUMULATIVE';
+
     document.getElementById('gwa-summary').innerHTML =
-        donutCard('Semester', semGwa, system, semInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="semester"') +
-        donutCard('Year', yearGwa, system, yearInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="year"') +
-        donutCard('Cumulative', cumGwa, system, cumInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="cumulative"');
+        donutCard(sLabel, semGwa, system, semInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="semester"') +
+        donutCard(yLabel, yearGwa, system, yearInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="year"') +
+        donutCard(cLabel, cumGwa, system, cumInd, true).replace('data-action="open-exclusions"', 'data-action="open-exclusions" data-scope="cumulative"');
 }
 
 function renderTabs() {
     const yTabs = document.getElementById('year-tabs');
     const sTabs = document.getElementById('sem-tabs');
 
-    yTabs.innerHTML = appData.years.map(y =>
+    const yLabel = appData.settings?.yearLabel || 'YEAR';
+    const sLabel = appData.settings?.semLabel || 'SEMESTER';
+
+    yTabs.innerHTML = `<div class="tab-group-label">${yLabel}</div><div class="tabs-list">` + appData.years.map(y =>
         `<div class="tab ${y.id === state.currentYearId ? 'active' : ''}" data-type="year" data-id="${y.id}">
             <input type="text" class="field field--tabname" data-path="year:${y.id}" value="${y.name}" size="${y.name.length || 4}">
             <button class="btn-delete" data-action="delete-year" data-path="${y.id}" aria-label="Delete year" title="Delete year">&times;</button>
         </div>`
-    ).join('') + `<button class="tab btn-add" data-action="add-year" aria-label="Add year">+</button>`;
+    ).join('') + `<button class="tab btn-add" data-action="add-year" aria-label="Add year">+</button></div>`;
 
     const currentYear = appData.years.find(y => y.id === state.currentYearId);
     if (currentYear) {
-        sTabs.innerHTML = currentYear.semesters.map(s =>
+        sTabs.innerHTML = `<div class="tab-group-label">${sLabel}</div><div class="tabs-list">` + currentYear.semesters.map(s =>
             `<div class="tab ${s.id === state.currentSemId ? 'active' : ''}" data-type="sem" data-id="${s.id}">
                 <input type="text" class="field field--tabname" data-path="sem:${currentYear.id}:${s.id}" value="${s.name}" size="${s.name.length || 4}">
                 <button class="btn-delete" data-action="delete-sem" data-path="${currentYear.id}:${s.id}" aria-label="Delete semester" title="Delete semester">&times;</button>
             </div>`
-        ).join('') + `<button class="tab btn-add" data-action="add-sem" aria-label="Add semester">+</button>`;
+        ).join('') + `<button class="tab btn-add" data-action="add-sem" aria-label="Add semester">+</button></div>`;
     } else {
         sTabs.innerHTML = '';
     }
@@ -917,11 +946,13 @@ ${sub.periods.map(per => {
                     <div class="breakdown-list">
                         ${pd.comps.map(c => {
                             const cTier = c.hasData ? pctTier(c.percent) : 'muted';
+                            const cEqGpa = Calculator.interpolateGrade(c.percent, Number(sub.passingPercent) || 60, system);
+                            const gpaText = (c.hasData && system !== 'PERCENT') ? ` &mdash; Eq: ${cEqGpa.toFixed(2)}` : '';
                             return `
                             <div class="bd-row">
                                 <div class="bd-main">
                                     <div class="bd-name">${c.name || 'Untitled'}</div>
-                                    <div class="bd-meta">${c.weight.toFixed(1)}% weight &mdash; contributes ${c.contrib.toFixed(1)} pts</div>
+                                    <div class="bd-meta">${c.weight.toFixed(1)}% weight &mdash; adds ${c.contrib.toFixed(1)}% to period${gpaText}</div>
                                     <div class="bd-track"><div class="bd-fill tier-${cTier}" style="width:${Math.max(0,Math.min(100,c.percent)).toFixed(1)}%"></div></div>
                                 </div>
                                 <div class="bd-val tier-${cTier}">${c.hasData ? c.percent.toFixed(1) : '-'}</div>
@@ -1007,7 +1038,12 @@ ${sub.periods.map(per => {
                                                     const ip = Calculator.computeItemPercent(item);
                                                     const iWeight = (item.weight !== '' && item.weight !== null && item.weight !== undefined) ? Number(item.weight) || 0 : (weightContext.iBlank > 0 ? Math.max(0, 100 - weightContext.iExplicit) / weightContext.iBlank : 0);
                                                     const earnedPts = (ip.percent * iWeight).toFixed(1);
-                                                    const computedDisplay = ip.isEmpty ? '-' : `${(ip.percent * 100).toFixed(1)}% <span style="font-size:11px; font-weight:normal; opacity:0.75; margin-left:4px;">(${earnedPts} pts)</span>`;
+                                                    let computedDisplay = ip.isEmpty ? '-' : `${(ip.percent * 100).toFixed(1)}% <span style="font-size:11px; font-weight:normal; opacity:0.75; margin-left:4px;">(+${earnedPts}% to parent)</span>`;
+                                                    
+                                                    if (!ip.isEmpty && system !== 'PERCENT') {
+                                                        const eqGpa = Calculator.interpolateGrade(ip.percent * 100, Number(sub.passingPercent) || 60, system);
+                                                        computedDisplay += ` <span style="font-size:11px; font-weight:bold; color:var(--primary); margin-left:8px;">(Eq: ${eqGpa.toFixed(2)})</span>`;
+                                                    }
                                                     
                                                     const badgeLabel = depth === 0 ? 'ITEM' : `SUB L${depth}`;
                                                     const namePlaceholder = depth === 0 ? `Item ${idx + 1}` : `Sub ${idx + 1}`;
@@ -1242,6 +1278,11 @@ document.addEventListener('click', async (e) => {
         const targetCard = e.target.closest('.gwa-card');
         const scope = targetCard ? targetCard.dataset.scope : 'semester';
         renderExclusionsModal(scope);
+        
+        document.getElementById('custom-year-label').value = (appData.settings?.yearLabel && appData.settings?.yearLabel !== 'YEAR') ? appData.settings.yearLabel : '';
+        document.getElementById('custom-sem-label').value = (appData.settings?.semLabel && appData.settings?.semLabel !== 'SEMESTER') ? appData.settings.semLabel : '';
+        document.getElementById('custom-cum-label').value = (appData.settings?.cumLabel && appData.settings?.cumLabel !== 'CUMULATIVE') ? appData.settings.cumLabel : '';
+
         document.getElementById('exclusions-modal').style.display = 'flex';
         return;
     }
@@ -1592,11 +1633,21 @@ function renderExclusionsModal(scope = 'semester') {
         return sHtml;
     };
 
+    const yearSetting = document.getElementById('year-label-setting');
+    const semSetting = document.getElementById('sem-label-setting');
+    const cumSetting = document.getElementById('cum-label-setting');
+
     if (scope === 'semester') {
-        if (title) title.innerText = 'Semester Grade Exclusions';
+        if (title) title.innerText = 'Semester Settings';
+        if (yearSetting) yearSetting.style.display = 'none';
+        if (semSetting) semSetting.style.display = 'block';
+        if (cumSetting) cumSetting.style.display = 'none';
         html = renderSubjects(currentSem?.subjects || []);
     } else if (scope === 'year') {
-        if (title) title.innerText = 'Year Grade Exclusions';
+        if (title) title.innerText = 'Year Settings';
+        if (yearSetting) yearSetting.style.display = 'block';
+        if (semSetting) semSetting.style.display = 'none';
+        if (cumSetting) cumSetting.style.display = 'none';
         if (currentYear) {
             currentYear.semesters.forEach(sem => {
                 html += `
@@ -1609,7 +1660,10 @@ function renderExclusionsModal(scope = 'semester') {
             });
         }
     } else if (scope === 'cumulative') {
-        if (title) title.innerText = 'Cumulative Grade Exclusions';
+        if (title) title.innerText = 'Cumulative Settings';
+        if (yearSetting) yearSetting.style.display = 'none';
+        if (semSetting) semSetting.style.display = 'none';
+        if (cumSetting) cumSetting.style.display = 'block';
         appData.years.forEach(year => {
             html += `
             <div class="exc-node" style="margin-top:16px;">
@@ -1635,6 +1689,16 @@ function renderExclusionsModal(scope = 'semester') {
 }
 
 document.getElementById('btn-exc-close').addEventListener('click', () => {
+    if (!appData.settings) appData.settings = {};
+    const yLabel = document.getElementById('custom-year-label').value.trim();
+    const sLabel = document.getElementById('custom-sem-label').value.trim();
+    const cLabel = document.getElementById('custom-cum-label').value.trim();
+    
+    appData.settings.yearLabel = yLabel || 'YEAR';
+    appData.settings.semLabel = sLabel || 'SEMESTER';
+    appData.settings.cumLabel = cLabel || 'CUMULATIVE';
+    Storage.setRecord(appData);
+
     document.getElementById('exclusions-modal').style.display = 'none';
     updateUI();
 });
@@ -1684,6 +1748,49 @@ document.addEventListener('change', (e) => {
     }
 });
 
+function enableDragToScroll(element) {
+    if (!element) return;
+    let isDown = false;
+    let isDragging = false;
+    let startX;
+    let scrollLeft;
+
+    element.addEventListener('mousedown', (e) => {
+        if (e.target.tagName.toLowerCase() === 'input' || e.target.isContentEditable) return;
+        isDown = true;
+        isDragging = false;
+        element.style.cursor = 'grabbing';
+        element.style.userSelect = 'none';
+        startX = e.pageX - element.offsetLeft;
+        scrollLeft = element.scrollLeft;
+    });
+    
+    window.addEventListener('mouseup', () => {
+        if (isDown) {
+            isDown = false;
+            element.style.cursor = '';
+            element.style.userSelect = '';
+            setTimeout(() => { isDragging = false; }, 0);
+        }
+    });
+    
+    window.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        isDragging = true;
+        const x = e.pageX - element.offsetLeft;
+        const walk = (x - startX) * 2;
+        element.scrollLeft = scrollLeft - walk;
+    });
+
+    element.addEventListener('click', (e) => {
+        if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, { capture: true });
+}
+
 async function initApp() {
     await handleAuth();
     const savedData = await Storage.getRecord();
@@ -1710,6 +1817,9 @@ async function initApp() {
     const currentYear = appData.years.find(y => y.id === state.currentYearId);
     state.currentSemId = currentYear?.semesters[0]?.id || null;
     state.currentSubId = null; 
+
+    enableDragToScroll(document.getElementById('year-tabs'));
+    enableDragToScroll(document.getElementById('sem-tabs'));
 
     updateUI();
 }
